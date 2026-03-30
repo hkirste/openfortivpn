@@ -404,7 +404,7 @@ static int get_gateway_host_ip(struct tunnel *tunnel)
 	}
 
 	tunnel->config->gateway_ip =
-		((struct sockaddr_in *)result->ai_addr)->sin_addr;
+	        ((struct sockaddr_in *)result->ai_addr)->sin_addr;
 	freeaddrinfo(result);
 
 	{

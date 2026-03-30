@@ -35,7 +35,9 @@ typedef int ssize_t;
 #endif
 #endif
 
+#ifdef _MSC_VER
 typedef int pid_t;
+#endif
 typedef unsigned int uid_t;
 
 /* File descriptor compatibility */
@@ -84,37 +86,51 @@ static inline uid_t geteuid(void)
 #define strcasecmp _stricmp
 #define strncasecmp _strnicmp
 #define strtok_r strtok_s
+#endif
 
+/*
+ * strcasestr and memmem are not available on MinGW or MSVC.
+ * getline is missing on MSVC only.
+ */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <ctype.h>
 
+#ifndef HAVE_STRCASESTR
 static inline char *strcasestr(const char *haystack, const char *needle)
 {
 	size_t nlen = strlen(needle);
-	if (nlen == 0) return (char *)haystack;
+
+	if (nlen == 0)
+		return (char *)haystack;
 	for (; *haystack; haystack++) {
-		if (_strnicmp(haystack, needle, nlen) == 0)
+		if (strncasecmp(haystack, needle, nlen) == 0)
 			return (char *)haystack;
 	}
 	return NULL;
 }
+#endif
 
+#ifndef HAVE_MEMMEM
 static inline void *memmem(const void *haystack, size_t hlen,
                            const void *needle, size_t nlen)
 {
 	const unsigned char *h = (const unsigned char *)haystack;
-	const unsigned char *n = (const unsigned char *)needle;
-	if (nlen == 0) return (void *)haystack;
-	if (nlen > hlen) return NULL;
-	for (size_t i = 0; i <= hlen - nlen; i++) {
-		if (memcmp(h + i, n, nlen) == 0)
+	size_t i;
+
+	if (nlen == 0)
+		return (void *)haystack;
+	if (nlen > hlen)
+		return NULL;
+	for (i = 0; i <= hlen - nlen; i++) {
+		if (memcmp(h + i, needle, nlen) == 0)
 			return (void *)(h + i);
 	}
 	return NULL;
 }
+#endif
 
+#ifdef _MSC_VER
 static inline ssize_t getline(char **lineptr, size_t *n, FILE *stream)
 {
 	size_t pos = 0;
@@ -126,18 +142,23 @@ static inline ssize_t getline(char **lineptr, size_t *n, FILE *stream)
 	if (!*lineptr) {
 		*n = 128;
 		*lineptr = (char *)malloc(*n);
-		if (!*lineptr) return -1;
+		if (!*lineptr)
+			return -1;
 	}
 
 	while ((c = fgetc(stream)) != EOF) {
 		if (pos + 1 >= *n) {
+			char *tmp;
+
 			*n *= 2;
-			char *tmp = (char *)realloc(*lineptr, *n);
-			if (!tmp) return -1;
+			tmp = (char *)realloc(*lineptr, *n);
+			if (!tmp)
+				return -1;
 			*lineptr = tmp;
 		}
 		(*lineptr)[pos++] = (char)c;
-		if (c == '\n') break;
+		if (c == '\n')
+			break;
 	}
 
 	if (pos == 0 && c == EOF)
