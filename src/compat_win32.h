@@ -130,7 +130,7 @@ static inline void *memmem(const void *haystack, size_t hlen,
 }
 #endif
 
-#ifdef _MSC_VER
+#ifndef HAVE_GETLINE
 static inline ssize_t getline(char **lineptr, size_t *n, FILE *stream)
 {
 	size_t pos = 0;
@@ -167,7 +167,7 @@ static inline ssize_t getline(char **lineptr, size_t *n, FILE *stream)
 	(*lineptr)[pos] = '\0';
 	return (ssize_t)pos;
 }
-#endif /* _MSC_VER */
+#endif /* !HAVE_GETLINE */
 
 /* Initialize Winsock - call once at startup */
 static inline int winsock_init(void)

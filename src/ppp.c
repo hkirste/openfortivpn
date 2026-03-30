@@ -575,22 +575,22 @@ int ppp_process_incoming(struct ppp_context *ctx,
 	}
 
 	default:
+	{
+		size_t rej_data_len = ppp_len;
 		/*
 		 * Unknown protocol. Send Protocol-Reject (LCP Code 8)
 		 * containing the rejected protocol and packet data.
+		 * Limit reject data per RFC 1661.
 		 */
-		{
-			size_t rej_data_len = ppp_len;
-			/* Limit reject data per RFC 1661 */
-			if (rej_data_len > 1500)
-				rej_data_len = 1500;
-			return build_control_packet(PPP_PROTO_LCP,
-			                            PPP_CODE_PROTO_REJ,
-			                            ctx->lcp_identifier++,
-			                            ppp_data, rej_data_len,
-			                            response, resp_len) < 0
-			       ? PPP_RET_ERROR : PPP_RET_OK;
-		}
+		if (rej_data_len > 1500)
+			rej_data_len = 1500;
+		return build_control_packet(PPP_PROTO_LCP,
+		                            PPP_CODE_PROTO_REJ,
+		                            ctx->lcp_identifier++,
+		                            ppp_data, rej_data_len,
+		                            response, resp_len) < 0
+		       ? PPP_RET_ERROR : PPP_RET_OK;
+	}
 	}
 }
 
