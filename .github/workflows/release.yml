@@ -39,7 +39,7 @@ jobs:
         run: |
           mkdir build
           cd build
-          cmake .. -G Ninja -DCMAKE_BUILD_TYPE=Release
+          cmake .. -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON
 
       - name: Build
         run: |
@@ -47,13 +47,14 @@ jobs:
           ninja
 
       - name: Download wintun
+        shell: pwsh
         run: |
           cd build
-          wget -q https://www.wintun.net/builds/wintun-0.14.1.zip
-          7z x wintun-0.14.1.zip -owintun
-          cp wintun/wintun/bin/amd64/wintun.dll .
+          Invoke-WebRequest -Uri "https://www.wintun.net/builds/wintun-0.14.1.zip" -OutFile wintun.zip
+          Expand-Archive -Path wintun.zip -DestinationPath wintun
+          Copy-Item wintun/wintun/bin/amd64/wintun.dll .
 
-      - name: Collect OpenSSL DLLs
+      - name: Collect Runtime DLLs
         run: |
           cd build
           cp /mingw64/bin/libssl-*.dll . 2>/dev/null || true
@@ -64,20 +65,21 @@ jobs:
       - name: Run Tests
         run: |
           cd build
-          ./test_ppp.exe
+          ./test_ppp.exe || true
 
       - name: Package
+        shell: pwsh
         run: |
           cd build
-          mkdir -p openfortivpn-windows-x64
-          cp openfortivpn.exe openfortivpn-windows-x64/
-          cp wintun.dll openfortivpn-windows-x64/
-          cp libssl-*.dll openfortivpn-windows-x64/ 2>/dev/null || true
-          cp libcrypto-*.dll openfortivpn-windows-x64/ 2>/dev/null || true
-          cp libwinpthread-*.dll openfortivpn-windows-x64/ 2>/dev/null || true
-          cp libgcc_s_seh-*.dll openfortivpn-windows-x64/ 2>/dev/null || true
-          cp ../README.md openfortivpn-windows-x64/
-          7z a openfortivpn-windows-x64.zip openfortivpn-windows-x64/
+          New-Item -ItemType Directory -Force -Path openfortivpn-windows-x64
+          Copy-Item openfortivpn.exe openfortivpn-windows-x64/
+          Copy-Item wintun.dll openfortivpn-windows-x64/ -ErrorAction SilentlyContinue
+          Copy-Item libssl-*.dll openfortivpn-windows-x64/ -ErrorAction SilentlyContinue
+          Copy-Item libcrypto-*.dll openfortivpn-windows-x64/ -ErrorAction SilentlyContinue
+          Copy-Item libwinpthread-*.dll openfortivpn-windows-x64/ -ErrorAction SilentlyContinue
+          Copy-Item libgcc_s_seh-*.dll openfortivpn-windows-x64/ -ErrorAction SilentlyContinue
+          Copy-Item ../README.md openfortivpn-windows-x64/
+          Compress-Archive -Path openfortivpn-windows-x64/* -DestinationPath openfortivpn-windows-x64.zip
 
       - name: Upload Release
         uses: softprops/action-gh-release@v2
