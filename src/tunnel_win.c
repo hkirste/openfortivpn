@@ -21,6 +21,7 @@
 #ifdef _WIN32
 
 #include "tunnel.h"
+#include "ipv4.h"
 #include "http.h"
 #include "ppp.h"
 #include "wintun.h"
@@ -47,10 +48,6 @@
 #define ADAPTER_NAME L"openfortivpn"
 #define TUNNEL_TYPE  L"openfortivpn"
 
-/* Forward declarations */
-extern void ipv4_win_set_tun_luid(NET_LUID *luid);
-extern void ipv4_apply_deferred_routes(void);
-
 static struct wintun_api wt_api;
 static int wt_api_loaded;
 static WINTUN_ADAPTER_HANDLE wt_adapter_handle;
@@ -66,9 +63,7 @@ static int wintun_create(struct tunnel *tunnel)
 
 	if (!wt_api_loaded) {
 		if (wintun_load(&wt_api) != 0) {
-			log_error("Failed to load wintun.dll. "
-			          "Please ensure wintun.dll is in the "
-			          "application directory or system PATH.\n");
+			log_error("Failed to load wintun.dll. Please ensure wintun.dll is in the application directory or system PATH.\n");
 			return 1;
 		}
 		wt_api_loaded = 1;
@@ -131,8 +126,7 @@ static int wintun_configure_ip(struct tunnel *tunnel)
 	char cmd[256];
 
 	snprintf(cmd, sizeof(cmd),
-	         "netsh interface ipv4 set address "
-	         "name=\"openfortivpn\" static %s 255.255.255.255",
+	         "netsh interface ipv4 set address name=\"openfortivpn\" static %s 255.255.255.255",
 	         ip_str);
 	log_debug("Running: %s\n", cmd);
 	ret = system(cmd);
@@ -141,8 +135,7 @@ static int wintun_configure_ip(struct tunnel *tunnel)
 
 	/* Set MTU to match PPP MRU */
 	snprintf(cmd, sizeof(cmd),
-	         "netsh interface ipv4 set subinterface "
-	         "\"openfortivpn\" mtu=1354 store=active");
+	         "netsh interface ipv4 set subinterface \"openfortivpn\" mtu=1354 store=active");
 	log_debug("Running: %s\n", cmd);
 	system(cmd);
 

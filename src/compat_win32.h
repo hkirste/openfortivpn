@@ -89,6 +89,20 @@ static inline uid_t geteuid(void)
 #endif
 
 /*
+ * isatty/fileno: MSVC has _isatty/_fileno, MinGW has both names.
+ * Cannot #include <io.h> because our src/io.h shadows the system header.
+ */
+#ifdef _MSC_VER
+int _isatty(int fd);
+int _fileno(FILE *stream);
+#define isatty _isatty
+#define fileno _fileno
+#else
+int isatty(int fd);
+int fileno(FILE *stream);
+#endif
+
+/*
  * strcasestr and memmem are not available on MinGW or MSVC.
  * getline is missing on MSVC only.
  */

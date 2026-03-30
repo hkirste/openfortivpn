@@ -28,9 +28,7 @@ static int tests_passed;
 	} while (0)
 
 #define FAIL(msg) \
-	do { \
-		printf("[FAIL] %s\n", msg); \
-	} while (0)
+	printf("[FAIL] %s\n", msg)
 
 #define ASSERT(cond, msg) \
 	do { \
@@ -135,7 +133,8 @@ static void test_lcp_reject_auth(void)
 	int ret;
 
 	/* LCP Config-Request with Auth option (type 3)
-	 * Length = 4 (header) + 4 (MRU) + 4 (Auth) = 12 */
+	 * Length = 4 (header) + 4 (MRU) + 4 (Auth) = 12
+	 */
 	uint8_t lcp_with_auth[] = {
 		0xc0, 0x21,
 		0x01, 0x02, 0x00, 0x0c,
@@ -450,7 +449,8 @@ static void test_full_negotiation(void)
 	free(start_pkt);
 
 	/* Step 2: Peer sends LCP Config-Request (we ack)
-	 * Length = 4 (header) + 4 (MRU) = 8 */
+	 * Length = 4 (header) + 4 (MRU) = 8
+	 */
 	uint8_t peer_lcp_req[] = {
 		0xc0, 0x21, 0x01, 0x01, 0x00, 0x08,
 		0x01, 0x04, 0x05, 0xDC /* MRU=1500 */

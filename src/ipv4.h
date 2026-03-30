@@ -98,4 +98,10 @@ int ipv4_restore_routes(struct tunnel *tunnel);
 int ipv4_add_nameservers_to_resolv_conf(struct tunnel *tunnel);
 int ipv4_del_nameservers_from_resolv_conf(struct tunnel *tunnel);
 
+#ifdef _WIN32
+#include <ifdef.h>
+void ipv4_win_set_tun_luid(NET_LUID *luid);
+void ipv4_apply_deferred_routes(void);
+#endif
+
 #endif

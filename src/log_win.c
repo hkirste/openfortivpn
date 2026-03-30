@@ -21,6 +21,7 @@
 #ifdef _WIN32
 
 #include "log.h"
+#include "compat_win32.h"
 
 #include <windows.h>
 #include <pthread.h>
@@ -28,18 +29,6 @@
 #include <stdio.h>
 #include <stdarg.h>
 #include <string.h>
-
-/* isatty/fileno: MSVC has _isatty/_fileno, MinGW has both names.
- * Cannot #include <io.h> because our src/io.h shadows the system header. */
-#ifdef _MSC_VER
-int _isatty(int fd);
-int _fileno(FILE *stream);
-#define isatty _isatty
-#define fileno _fileno
-#else
-int isatty(int fd);
-int fileno(FILE *stream);
-#endif
 
 enum log_verbosity loglevel = OFV_LOG_INFO;
 
