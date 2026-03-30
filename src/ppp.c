@@ -279,8 +279,7 @@ static int handle_lcp(struct ppp_context *ctx,
 		                            response, resp_len) < 0
 		       ? PPP_RET_ERROR : PPP_RET_OK;
 
-	case PPP_CODE_CONF_REJ:
-	{
+	case PPP_CODE_CONF_REJ: {
 		/*
 		 * Peer rejected some of our options. Re-send without them.
 		 * For simplicity, send a minimal config with just MRU.
