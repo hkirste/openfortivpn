@@ -18,10 +18,14 @@
 #ifndef OPENFORTIVPN_IPV4_H
 #define OPENFORTIVPN_IPV4_H
 
+#ifdef _WIN32
+#include "compat_win32.h"
+#else
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <net/route.h>
+#endif
 
 #if !HAVE_RT_ENTRY_WITH_RT_DST
 /*
