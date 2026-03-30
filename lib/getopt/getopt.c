@@ -106,8 +106,22 @@ int getopt_long(int argc, char *const argv[], const char *optstring,
 	if (optind >= argc)
 		return -1;
 
-	if (argv[optind] == NULL || argv[optind][0] != '-')
-		return -1;
+	/* GNU-style permutation: skip non-option arguments */
+	if (argv[optind] == NULL || argv[optind][0] != '-') {
+		int j;
+
+		for (j = optind; j < argc; j++) {
+			if (argv[j] && argv[j][0] == '-' && argv[j][1] != '\0')
+				break;
+		}
+		if (j >= argc)
+			return -1;
+		/* Move the non-option args after the option we found */
+		while (j > optind)
+			permute(argv, j--, optind);
+		if (argv[optind] == NULL || argv[optind][0] != '-')
+			return -1;
+	}
 
 	/* Check for "--" */
 	if (strcmp(argv[optind], "--") == 0) {
