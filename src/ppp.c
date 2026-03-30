@@ -280,25 +280,25 @@ static int handle_lcp(struct ppp_context *ctx,
 		       ? PPP_RET_ERROR : PPP_RET_OK;
 
 	case PPP_CODE_CONF_REJ:
+	{
 		/*
 		 * Peer rejected some of our options. Re-send without them.
 		 * For simplicity, send a minimal config with just MRU.
 		 */
-		{
-			uint8_t min_opts[4];
+		uint8_t min_opts[4];
 
-			min_opts[0] = LCP_OPT_MRU;
-			min_opts[1] = 4;
-			min_opts[2] = (uint8_t)(ctx->mru >> 8);
-			min_opts[3] = (uint8_t)(ctx->mru & 0xff);
+		min_opts[0] = LCP_OPT_MRU;
+		min_opts[1] = 4;
+		min_opts[2] = (uint8_t)(ctx->mru >> 8);
+		min_opts[3] = (uint8_t)(ctx->mru & 0xff);
 
-			return build_control_packet(PPP_PROTO_LCP,
-			                            PPP_CODE_CONF_REQ,
-			                            ctx->lcp_identifier++,
-			                            min_opts, 4,
-			                            response, resp_len) < 0
-			       ? PPP_RET_ERROR : PPP_RET_OK;
-		}
+		return build_control_packet(PPP_PROTO_LCP,
+		                            PPP_CODE_CONF_REQ,
+		                            ctx->lcp_identifier++,
+		                            min_opts, 4,
+		                            response, resp_len) < 0
+		       ? PPP_RET_ERROR : PPP_RET_OK;
+	}
 
 	case PPP_CODE_TERM_REQ:
 		/* Peer wants to terminate. Send Term-Ack. */
@@ -574,8 +574,7 @@ int ppp_process_incoming(struct ppp_context *ctx,
 		return PPP_RET_IP_PACKET;
 	}
 
-	default:
-	{
+	default: {
 		size_t rej_data_len = ppp_len;
 		/*
 		 * Unknown protocol. Send Protocol-Reject (LCP Code 8)
