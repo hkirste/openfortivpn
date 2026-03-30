@@ -23,13 +23,17 @@ typedef void *WINTUN_SESSION_HANDLE;
  * Two-step typedefs avoid checkpatch false positives on WINAPI
  * calling convention syntax.
  */
-typedef WINTUN_ADAPTER_HANDLE WINAPI WINTUN_CREATE_ADAPTER_FN(const WCHAR *, const WCHAR *, const GUID *);
+typedef WINTUN_ADAPTER_HANDLE WINAPI
+WINTUN_CREATE_ADAPTER_FN(const WCHAR *, const WCHAR *,
+                         const GUID *);
 typedef WINTUN_CREATE_ADAPTER_FN *WINTUN_CREATE_ADAPTER_FUNC;
 
-typedef void WINAPI WINTUN_CLOSE_ADAPTER_FN(WINTUN_ADAPTER_HANDLE);
+typedef void WINAPI
+WINTUN_CLOSE_ADAPTER_FN(WINTUN_ADAPTER_HANDLE);
 typedef WINTUN_CLOSE_ADAPTER_FN *WINTUN_CLOSE_ADAPTER_FUNC;
 
-typedef WINTUN_SESSION_HANDLE WINAPI WINTUN_START_SESSION_FN(WINTUN_ADAPTER_HANDLE, DWORD);
+typedef WINTUN_SESSION_HANDLE WINAPI
+WINTUN_START_SESSION_FN(WINTUN_ADAPTER_HANDLE, DWORD);
 typedef WINTUN_START_SESSION_FN *WINTUN_START_SESSION_FUNC;
 
 typedef void WINAPI WINTUN_END_SESSION_FN(WINTUN_SESSION_HANDLE);
@@ -85,29 +89,38 @@ static inline int wintun_load(struct wintun_api *api)
 
 	api->module = mod;
 
-#define LOAD_FUNC(name, type) \
-	do { \
-		api->name = (type) \
-			GetProcAddress(mod, "Wintun" #name); \
-		if (!api->name) { \
-			FreeLibrary(mod); \
-			return -1; \
-		} \
-	} while (0)
+	api->CreateAdapter = (WINTUN_CREATE_ADAPTER_FUNC)
+	                     GetProcAddress(mod, "WintunCreateAdapter");
+	api->CloseAdapter = (WINTUN_CLOSE_ADAPTER_FUNC)
+	                    GetProcAddress(mod, "WintunCloseAdapter");
+	api->StartSession = (WINTUN_START_SESSION_FUNC)
+	                    GetProcAddress(mod, "WintunStartSession");
+	api->EndSession = (WINTUN_END_SESSION_FUNC)
+	                  GetProcAddress(mod, "WintunEndSession");
+	api->GetReadWaitEvent = (WINTUN_GET_READ_WAIT_EVENT_FUNC)
+	                        GetProcAddress(mod, "WintunGetReadWaitEvent");
+	api->ReceivePacket = (WINTUN_RECEIVE_PACKET_FUNC)
+	                     GetProcAddress(mod, "WintunReceivePacket");
+	api->ReleaseReceivePacket = (WINTUN_RELEASE_RECEIVE_PACKET_FUNC)
+	                            GetProcAddress(mod, "WintunReleaseReceivePacket");
+	api->AllocateSendPacket = (WINTUN_ALLOCATE_SEND_PACKET_FUNC)
+	                          GetProcAddress(mod, "WintunAllocateSendPacket");
+	api->SendPacket = (WINTUN_SEND_PACKET_FUNC)
+	                  GetProcAddress(mod, "WintunSendPacket");
+	api->GetAdapterLUID = (WINTUN_GET_ADAPTER_LUID_FUNC)
+	                      GetProcAddress(mod, "WintunGetAdapterLUID");
+	api->GetRunningDriverVersion = (WINTUN_GET_RUNNING_DRIVER_VERSION_FUNC)
+	                               GetProcAddress(mod, "WintunGetRunningDriverVersion");
 
-	LOAD_FUNC(CreateAdapter, WINTUN_CREATE_ADAPTER_FUNC);
-	LOAD_FUNC(CloseAdapter, WINTUN_CLOSE_ADAPTER_FUNC);
-	LOAD_FUNC(StartSession, WINTUN_START_SESSION_FUNC);
-	LOAD_FUNC(EndSession, WINTUN_END_SESSION_FUNC);
-	LOAD_FUNC(GetReadWaitEvent, WINTUN_GET_READ_WAIT_EVENT_FUNC);
-	LOAD_FUNC(ReceivePacket, WINTUN_RECEIVE_PACKET_FUNC);
-	LOAD_FUNC(ReleaseReceivePacket, WINTUN_RELEASE_RECEIVE_PACKET_FUNC);
-	LOAD_FUNC(AllocateSendPacket, WINTUN_ALLOCATE_SEND_PACKET_FUNC);
-	LOAD_FUNC(SendPacket, WINTUN_SEND_PACKET_FUNC);
-	LOAD_FUNC(GetAdapterLUID, WINTUN_GET_ADAPTER_LUID_FUNC);
-	LOAD_FUNC(GetRunningDriverVersion, WINTUN_GET_RUNNING_DRIVER_VERSION_FUNC);
-
-#undef LOAD_FUNC
+	if (!api->CreateAdapter || !api->CloseAdapter ||
+	    !api->StartSession || !api->EndSession ||
+	    !api->GetReadWaitEvent || !api->ReceivePacket ||
+	    !api->ReleaseReceivePacket || !api->AllocateSendPacket ||
+	    !api->SendPacket || !api->GetAdapterLUID ||
+	    !api->GetRunningDriverVersion) {
+		FreeLibrary(mod);
+		return -1;
+	}
 
 	return 0;
 }
