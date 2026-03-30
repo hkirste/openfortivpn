@@ -23,13 +23,19 @@
 
 #include <openssl/ssl.h>
 
+#ifndef _WIN32
 #include <unistd.h>
+#endif
 #include <getopt.h>
 
 #include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+#ifdef _WIN32
+#include "compat_win32.h"
+#endif
 
 #if HAVE_USR_SBIN_PPPD && HAVE_USR_SBIN_PPP
 #error "Both HAVE_USR_SBIN_PPPD and HAVE_USR_SBIN_PPP have been defined."
@@ -62,6 +68,10 @@
 #define PPPD_HELP \
 "  --ppp-system=<system>         Connect to the specified system as defined in\n" \
 "                                /etc/ppp/ppp.conf.\n"
+#elif defined(_WIN32)
+/* On Windows, PPP is handled in-process via wintun */
+#define PPPD_USAGE ""
+#define PPPD_HELP ""
 #else
 #error "Neither HAVE_USR_SBIN_PPPD nor HAVE_USR_SBIN_PPP have been defined."
 #endif
@@ -245,7 +255,7 @@ int main(int argc, char *argv[])
 #if HAVE_RESOLVCONF
 		.use_resolvconf = USE_RESOLVCONF,
 #endif
-#if HAVE_USR_SBIN_PPPD
+#if HAVE_USR_SBIN_PPPD || defined(_WIN32)
 		.pppd_use_peerdns = 0,
 		.pppd_log = NULL,
 		.pppd_plugin = NULL,
@@ -313,7 +323,7 @@ int main(int argc, char *argv[])
 		{"cipher-list",          required_argument, NULL, 0},
 		{"min-tls",              required_argument, NULL, 0},
 		{"seclevel-1",           no_argument, &cli_cfg.seclevel_1, 1},
-#if HAVE_USR_SBIN_PPPD
+#if HAVE_USR_SBIN_PPPD || defined(_WIN32)
 		{"pppd-use-peerdns",     required_argument, NULL, 0},
 		{"pppd-no-peerdns",      no_argument, &cli_cfg.pppd_use_peerdns, 0},
 		{"pppd-log",             required_argument, NULL, 0},
@@ -331,6 +341,13 @@ int main(int argc, char *argv[])
 #endif
 		{NULL, 0, NULL, 0}
 	};
+
+#ifdef _WIN32
+	if (winsock_init() != 0) {
+		fprintf(stderr, "Failed to initialize Winsock.\n");
+		return EXIT_FAILURE;
+	}
+#endif
 
 	init_logging();
 
@@ -358,7 +375,7 @@ int main(int argc, char *argv[])
 				ret = EXIT_SUCCESS;
 				goto exit;
 			}
-#if HAVE_USR_SBIN_PPPD
+#if HAVE_USR_SBIN_PPPD || defined(_WIN32)
 			if (strcmp(long_options[option_index].name,
 			           "pppd-use-peerdns") == 0) {
 				int pppd_use_peerdns = strtob(optarg);
@@ -742,11 +759,34 @@ int main(int argc, char *argv[])
 	if (cfg.otp[0] != '\0')
 		log_debug("One-time password = \"%s\"\n", cfg.otp);
 
+#ifdef _WIN32
+	{
+		/* Check for administrator privileges on Windows */
+		BOOL is_admin = FALSE;
+		SID_IDENTIFIER_AUTHORITY nt_auth = SECURITY_NT_AUTHORITY;
+		PSID admin_group = NULL;
+
+		if (AllocateAndInitializeSid(&nt_auth, 2,
+		                             SECURITY_BUILTIN_DOMAIN_RID,
+		                             DOMAIN_ALIAS_RID_ADMINS,
+		                             0, 0, 0, 0, 0, 0,
+		                             &admin_group)) {
+			CheckTokenMembership(NULL, admin_group, &is_admin);
+			FreeSid(admin_group);
+		}
+		if (!is_admin) {
+			log_error("This process requires administrator privileges.\n");
+			ret = EXIT_FAILURE;
+			goto exit;
+		}
+	}
+#else
 	if (geteuid() != 0) {
 		log_error("This process was not spawned with root privileges, which are required.\n");
 		ret = EXIT_FAILURE;
 		goto exit;
 	}
+#endif
 
 	if (cfg.saml_port != 0) {
 		// Wait for the SAML token from the HTTP GET request
@@ -778,5 +818,8 @@ user_error:
 	fprintf(stderr, "%s", usage);
 exit:
 	destroy_vpn_config(&cfg);
+#ifdef _WIN32
+	winsock_cleanup();
+#endif
 	exit(ret);
 }
