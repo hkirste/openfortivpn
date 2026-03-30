@@ -47,11 +47,13 @@
 #define ADAPTER_NAME L"openfortivpn"
 #define TUNNEL_TYPE  L"openfortivpn"
 
-/* Forward declaration */
+/* Forward declarations */
 extern void ipv4_win_set_tun_luid(NET_LUID *luid);
+extern void ipv4_apply_deferred_routes(void);
 
 static struct wintun_api wt_api;
 static int wt_api_loaded;
+static WINTUN_ADAPTER_HANDLE wt_adapter_handle;
 
 /*
  * Load wintun.dll and create a TUN adapter.
@@ -99,10 +101,13 @@ static int wintun_create(struct tunnel *tunnel)
 		return 1;
 	}
 
+	/* Save the adapter handle for cleanup */
+	wt_adapter_handle = adapter;
+
 	/*
 	 * Store handles in tunnel struct.
 	 * tun_adapter stores a pointer to the static wt_api struct
-	 * (which contains the function pointers AND the adapter handle),
+	 * (which contains the function pointers),
 	 * tun_session stores the session handle.
 	 */
 	tunnel->tun_adapter = (void *)&wt_api;
@@ -117,17 +122,8 @@ static int wintun_create(struct tunnel *tunnel)
  */
 static int wintun_configure_ip(struct tunnel *tunnel)
 {
-	MIB_UNICASTIPADDRESS_ROW addr_row;
-	NET_LUID luid;
 	DWORD ret;
 	char ip_str[INET_ADDRSTRLEN];
-
-	wt_api.GetAdapterLUID(
-		wt_api.CreateAdapter ? (WINTUN_ADAPTER_HANDLE)NULL : NULL,
-		&luid);
-
-	/* We already have the LUID from creation */
-	/* Re-fetch it from the adapter stored in tunnel */
 
 	/* Use netsh to set the IP address (most reliable approach) */
 	inet_ntop(AF_INET, &tunnel->ipv4.ip_addr, ip_str, sizeof(ip_str));
@@ -160,8 +156,10 @@ static void wintun_destroy(struct tunnel *tunnel)
 		tunnel->tun_session = NULL;
 	}
 
-	/* Close adapter - remove it from Windows */
-	/* Note: adapter handle is managed via wt_api, not stored separately */
+	if (wt_adapter_handle) {
+		wt_api.CloseAdapter(wt_adapter_handle);
+		wt_adapter_handle = NULL;
+	}
 
 	log_info("Wintun adapter destroyed.\n");
 }
@@ -444,6 +442,9 @@ static int on_ppp_if_up(struct tunnel *tunnel)
 
 	/* Configure IP on the wintun adapter */
 	wintun_configure_ip(tunnel);
+
+	/* Apply any split routes that were deferred during config parsing */
+	ipv4_apply_deferred_routes();
 
 	/* Set up routes */
 	if (tunnel->config->set_routes) {

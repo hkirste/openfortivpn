@@ -48,6 +48,16 @@ static struct win_route vpn_gateway_route;
 static NET_LUID tun_luid;
 static int tun_luid_valid;
 
+/* Deferred split routes - stored during config, applied after adapter creation */
+#define MAX_DEFERRED_ROUTES 256
+struct deferred_route {
+	struct in_addr dest;
+	struct in_addr mask;
+	struct in_addr gateway;
+};
+static struct deferred_route deferred_routes[MAX_DEFERRED_ROUTES];
+static int num_deferred_routes = 0;
+
 void ipv4_win_set_tun_luid(NET_LUID *luid)
 {
 	tun_luid = *luid;
@@ -167,11 +177,36 @@ int ipv4_add_split_vpn_route(struct tunnel *tunnel, char *dest, char *mask,
 	log_info("Adding split route: %s/%s via %s\n", dest, mask, gateway);
 
 	if (!tun_luid_valid) {
-		log_error("TUN adapter LUID not set.\n");
-		return -1;
+		/* Defer route until TUN adapter is created */
+		if (num_deferred_routes < MAX_DEFERRED_ROUTES) {
+			deferred_routes[num_deferred_routes].dest = dest_addr;
+			deferred_routes[num_deferred_routes].mask = mask_addr;
+			deferred_routes[num_deferred_routes].gateway = gw_addr;
+			num_deferred_routes++;
+			log_debug("Route deferred (adapter not ready).\n");
+		}
+		return 0;
 	}
 
 	return add_route(dest_addr, mask_addr, gw_addr, &tun_luid, 0);
+}
+
+void ipv4_apply_deferred_routes(void)
+{
+	int i;
+
+	for (i = 0; i < num_deferred_routes; i++) {
+		char dest_str[INET_ADDRSTRLEN], mask_str[INET_ADDRSTRLEN];
+
+		inet_ntop(AF_INET, &deferred_routes[i].dest,
+		          dest_str, sizeof(dest_str));
+		inet_ntop(AF_INET, &deferred_routes[i].mask,
+		          mask_str, sizeof(mask_str));
+		log_info("Applying deferred route: %s/%s\n", dest_str, mask_str);
+		add_route(deferred_routes[i].dest, deferred_routes[i].mask,
+		          deferred_routes[i].gateway, &tun_luid, 0);
+	}
+	num_deferred_routes = 0;
 }
 
 int ipv4_set_tunnel_routes(struct tunnel *tunnel)

@@ -24,7 +24,6 @@
 #include <ws2tcpip.h>
 #include <windows.h>
 #include <iphlpapi.h>
-#include <io.h>
 #include <process.h>
 
 /* POSIX type compatibility */
@@ -79,6 +78,75 @@ static inline uid_t geteuid(void)
 
 /* Environment variable compatibility */
 #define setenv(name, value, overwrite) _putenv_s(name, value)
+
+/* POSIX string function compatibility for MSVC */
+#ifdef _MSC_VER
+#define strcasecmp _stricmp
+#define strncasecmp _strnicmp
+#define strtok_r strtok_s
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <ctype.h>
+
+static inline char *strcasestr(const char *haystack, const char *needle)
+{
+	size_t nlen = strlen(needle);
+	if (nlen == 0) return (char *)haystack;
+	for (; *haystack; haystack++) {
+		if (_strnicmp(haystack, needle, nlen) == 0)
+			return (char *)haystack;
+	}
+	return NULL;
+}
+
+static inline void *memmem(const void *haystack, size_t hlen,
+                           const void *needle, size_t nlen)
+{
+	const unsigned char *h = (const unsigned char *)haystack;
+	const unsigned char *n = (const unsigned char *)needle;
+	if (nlen == 0) return (void *)haystack;
+	if (nlen > hlen) return NULL;
+	for (size_t i = 0; i <= hlen - nlen; i++) {
+		if (memcmp(h + i, n, nlen) == 0)
+			return (void *)(h + i);
+	}
+	return NULL;
+}
+
+static inline ssize_t getline(char **lineptr, size_t *n, FILE *stream)
+{
+	size_t pos = 0;
+	int c;
+
+	if (!lineptr || !n || !stream)
+		return -1;
+
+	if (!*lineptr) {
+		*n = 128;
+		*lineptr = (char *)malloc(*n);
+		if (!*lineptr) return -1;
+	}
+
+	while ((c = fgetc(stream)) != EOF) {
+		if (pos + 1 >= *n) {
+			*n *= 2;
+			char *tmp = (char *)realloc(*lineptr, *n);
+			if (!tmp) return -1;
+			*lineptr = tmp;
+		}
+		(*lineptr)[pos++] = (char)c;
+		if (c == '\n') break;
+	}
+
+	if (pos == 0 && c == EOF)
+		return -1;
+
+	(*lineptr)[pos] = '\0';
+	return (ssize_t)pos;
+}
+#endif /* _MSC_VER */
 
 /* Initialize Winsock - call once at startup */
 static inline int winsock_init(void)
