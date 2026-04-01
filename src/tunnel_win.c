@@ -354,7 +354,7 @@ int ssl_connect(struct tunnel *tunnel)
 					           "\"digest\":\"%s\","
 					           "\"reason\":\"verification_failed\"",
 					           digest_str);
-					return 1;
+					return OFV_EXIT_CERT_FAILED;
 				}
 				log_debug("Trusted certificate matched.\n");
 			} else {
@@ -539,7 +539,8 @@ int run_tunnel(struct vpn_config *config)
 	log_debug("Establishing TLS connection\n");
 	ret = ssl_connect(&tunnel);
 	if (ret) {
-		ret = OFV_EXIT_TLS_FAILED;
+		if (ret != OFV_EXIT_CERT_FAILED)
+			ret = OFV_EXIT_TLS_FAILED;
 		goto err_tunnel;
 	}
 	log_info("Connected to gateway.\n");
@@ -569,7 +570,8 @@ int run_tunnel(struct vpn_config *config)
 
 	ret = ssl_connect(&tunnel);
 	if (ret) {
-		ret = OFV_EXIT_TLS_FAILED;
+		if (ret != OFV_EXIT_CERT_FAILED)
+			ret = OFV_EXIT_TLS_FAILED;
 		goto err_tunnel;
 	}
 

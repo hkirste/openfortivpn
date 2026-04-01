@@ -125,11 +125,18 @@
                                TextWrapping="Wrap"
                                Margin="0,0,0,12" />
 
-                    <Button Grid.Row="2"
-                            Content="Dismiss"
-                            Style="{StaticResource SecondaryButtonStyle}"
-                            Command="{Binding DismissErrorCommand}"
-                            HorizontalAlignment="Left" />
+                    <StackPanel Grid.Row="2" Orientation="Horizontal">
+                        <Button Content="Trust Certificate &amp; Retry"
+                                Style="{StaticResource PrimaryButtonStyle}"
+                                Command="{Binding TrustCertificateAndRetryCommand}"
+                                Visibility="{Binding IsCertError,
+                                             Converter={StaticResource BoolToVis}}"
+                                Margin="0,0,8,0" />
+
+                        <Button Content="Dismiss"
+                                Style="{StaticResource SecondaryButtonStyle}"
+                                Command="{Binding DismissErrorCommand}" />
+                    </StackPanel>
                 </Grid>
             </Border>
 

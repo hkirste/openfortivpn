@@ -59,6 +59,12 @@ public partial class DashboardViewModel : ObservableObject
     [ObservableProperty]
     private string? _errorSuggestion;
 
+    [ObservableProperty]
+    private bool _isCertError;
+
+    [ObservableProperty]
+    private string? _certDigest;
+
     // --- Quick Connect ---
 
     [ObservableProperty]
@@ -203,6 +209,35 @@ public partial class DashboardViewModel : ObservableObject
     }
 
     [RelayCommand]
+    private async Task TrustCertificateAndRetry()
+    {
+        if (SelectedProfile is null || string.IsNullOrEmpty(CertDigest))
+            return;
+
+        // Add digest to profile's trusted list
+        if (!SelectedProfile.TrustedCertDigests.Contains(CertDigest))
+            SelectedProfile.TrustedCertDigests.Add(CertDigest);
+
+        await _profileService.SaveProfileAsync(SelectedProfile);
+
+        // Clear error and retry
+        HasError = false;
+        IsCertError = false;
+        ErrorMessage = null;
+        CertDigest = null;
+
+        try
+        {
+            await _vpnService.ConnectAsync(SelectedProfile, Password);
+        }
+        catch (Exception ex)
+        {
+            HasError = true;
+            ErrorMessage = ex.Message;
+        }
+    }
+
+    [RelayCommand]
     private void DismissError()
     {
         HasError = false;
@@ -262,17 +297,29 @@ public partial class DashboardViewModel : ObservableObject
                 if (HasError)
                 {
                     ErrorMessage = conn.ErrorMessage;
+                    IsCertError = conn.ErrorCategory ==
+                        Models.ErrorCategory.CertificateError;
+
+                    // Extract digest from error message for one-click trust
+                    if (IsCertError && conn.ErrorMessage is not null)
+                    {
+                        var match = System.Text.RegularExpressions.Regex.Match(
+                            conn.ErrorMessage, @"([a-f0-9]{64})");
+                        if (match.Success)
+                            CertDigest = match.Groups[1].Value;
+                    }
+
                     ErrorSuggestion = conn.ErrorCategory switch
                     {
                         Models.ErrorCategory.AuthenticationFailed =>
-                            "Check your username and password, or contact your IT administrator.",
+                            "Check your username and password.",
                         Models.ErrorCategory.CertificateError =>
-                            "The server certificate is not trusted. Add it to trusted certificates in your profile.",
+                            "Click 'Trust Certificate' to add this server's certificate and retry.",
                         Models.ErrorCategory.NetworkUnreachable =>
-                            "Check your internet connection and ensure the VPN server is reachable.",
+                            "Check your internet connection.",
                         Models.ErrorCategory.PermissionDenied =>
-                            "Run the application as Administrator to manage network interfaces.",
-                        _ => "Check the log viewer for detailed error information."
+                            "Run the application as Administrator.",
+                        _ => "Check the log viewer for details."
                     };
                 }
 
