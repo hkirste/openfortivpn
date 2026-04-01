@@ -74,11 +74,71 @@ struct wintun_api {
 static inline FARPROC wintun_resolve(HMODULE mod,
                                      const char *name)
 {
-	FARPROC fn = GetProcAddress(mod, name);
+	return GetProcAddress(mod, name);
+}
 
+static inline int wintun_load_funcs(struct wintun_api *api,
+                                    HMODULE mod)
+{
+	FARPROC fn;
+
+	fn = wintun_resolve(mod, "WintunCreateAdapter");
 	if (!fn)
-		FreeLibrary(mod);
-	return fn;
+		return 0;
+	api->CreateAdapter = (WINTUN_CREATE_ADAPTER_FUNC)fn;
+
+	fn = wintun_resolve(mod, "WintunCloseAdapter");
+	if (!fn)
+		return 0;
+	api->CloseAdapter = (WINTUN_CLOSE_ADAPTER_FUNC)fn;
+
+	fn = wintun_resolve(mod, "WintunStartSession");
+	if (!fn)
+		return 0;
+	api->StartSession = (WINTUN_START_SESSION_FUNC)fn;
+
+	fn = wintun_resolve(mod, "WintunEndSession");
+	if (!fn)
+		return 0;
+	api->EndSession = (WINTUN_END_SESSION_FUNC)fn;
+
+	fn = wintun_resolve(mod, "WintunGetReadWaitEvent");
+	if (!fn)
+		return 0;
+	api->GetReadWaitEvent = (WINTUN_GET_READ_WAIT_EVENT_FUNC)fn;
+
+	fn = wintun_resolve(mod, "WintunReceivePacket");
+	if (!fn)
+		return 0;
+	api->ReceivePacket = (WINTUN_RECEIVE_PACKET_FUNC)fn;
+
+	fn = wintun_resolve(mod, "WintunReleaseReceivePacket");
+	if (!fn)
+		return 0;
+	api->ReleaseReceivePacket = (WINTUN_RELEASE_RECEIVE_PACKET_FUNC)fn;
+
+	fn = wintun_resolve(mod, "WintunAllocateSendPacket");
+	if (!fn)
+		return 0;
+	api->AllocateSendPacket = (WINTUN_ALLOCATE_SEND_PACKET_FUNC)fn;
+
+	fn = wintun_resolve(mod, "WintunSendPacket");
+	if (!fn)
+		return 0;
+	api->SendPacket = (WINTUN_SEND_PACKET_FUNC)fn;
+
+	fn = wintun_resolve(mod, "WintunGetAdapterLUID");
+	if (!fn)
+		return 0;
+	api->GetAdapterLUID = (WINTUN_GET_ADAPTER_LUID_FUNC)fn;
+
+	fn = wintun_resolve(mod, "WintunGetRunningDriverVersion");
+	if (!fn)
+		return 0;
+	api->GetRunningDriverVersion =
+	        (WINTUN_GET_RUNNING_DRIVER_VERSION_FUNC)fn;
+
+	return 1;
 }
 
 static inline int wintun_load(struct wintun_api *api)
@@ -90,51 +150,10 @@ static inline int wintun_load(struct wintun_api *api)
 
 	api->module = mod;
 
-	api->CreateAdapter = (WINTUN_CREATE_ADAPTER_FUNC)
-		wintun_resolve(mod, "WintunCreateAdapter");
-	if (!api->CreateAdapter)
+	if (!wintun_load_funcs(api, mod)) {
+		FreeLibrary(mod);
 		return -1;
-	api->CloseAdapter = (WINTUN_CLOSE_ADAPTER_FUNC)
-		wintun_resolve(mod, "WintunCloseAdapter");
-	if (!api->CloseAdapter)
-		return -1;
-	api->StartSession = (WINTUN_START_SESSION_FUNC)
-		wintun_resolve(mod, "WintunStartSession");
-	if (!api->StartSession)
-		return -1;
-	api->EndSession = (WINTUN_END_SESSION_FUNC)
-		wintun_resolve(mod, "WintunEndSession");
-	if (!api->EndSession)
-		return -1;
-	api->GetReadWaitEvent = (WINTUN_GET_READ_WAIT_EVENT_FUNC)
-		wintun_resolve(mod, "WintunGetReadWaitEvent");
-	if (!api->GetReadWaitEvent)
-		return -1;
-	api->ReceivePacket = (WINTUN_RECEIVE_PACKET_FUNC)
-		wintun_resolve(mod, "WintunReceivePacket");
-	if (!api->ReceivePacket)
-		return -1;
-	api->ReleaseReceivePacket = (WINTUN_RELEASE_RECEIVE_PACKET_FUNC)
-		wintun_resolve(mod, "WintunReleaseReceivePacket");
-	if (!api->ReleaseReceivePacket)
-		return -1;
-	api->AllocateSendPacket = (WINTUN_ALLOCATE_SEND_PACKET_FUNC)
-		wintun_resolve(mod, "WintunAllocateSendPacket");
-	if (!api->AllocateSendPacket)
-		return -1;
-	api->SendPacket = (WINTUN_SEND_PACKET_FUNC)
-		wintun_resolve(mod, "WintunSendPacket");
-	if (!api->SendPacket)
-		return -1;
-	api->GetAdapterLUID = (WINTUN_GET_ADAPTER_LUID_FUNC)
-		wintun_resolve(mod, "WintunGetAdapterLUID");
-	if (!api->GetAdapterLUID)
-		return -1;
-	api->GetRunningDriverVersion =
-		(WINTUN_GET_RUNNING_DRIVER_VERSION_FUNC)
-		wintun_resolve(mod, "WintunGetRunningDriverVersion");
-	if (!api->GetRunningDriverVersion)
-		return -1;
+	}
 
 	return 0;
 }
