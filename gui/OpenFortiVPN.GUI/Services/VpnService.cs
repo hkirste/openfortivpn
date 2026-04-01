@@ -175,7 +175,7 @@ public sealed class VpnService : IVpnService, IDisposable
                     }
                     else
                     {
-                        _logger.LogDebug("Unparseable stderr line: {Line}", line);
+                        _logger.LogDebug("Non-JSON stderr line: {Line}", line);
                     }
                 }
                 else
