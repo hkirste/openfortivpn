@@ -1,13 +1,13 @@
 using System.Diagnostics;
-using System.Text.RegularExpressions;
 using Microsoft.Extensions.Logging;
 using OpenFortiVPN.GUI.Models;
 
 namespace OpenFortiVPN.GUI.Services;
 
 /// <summary>
-/// Manages the openfortivpn.exe child process, parsing its output to drive
-/// the GUI state machine. Passwords are delivered exclusively via stdin pipe.
+/// Manages the openfortivpn.exe child process. Structured JSON events on
+/// stderr drive the state machine; stdout is forwarded to the log viewer.
+/// Passwords are delivered exclusively via stdin pipe.
 /// </summary>
 public sealed class VpnService : IVpnService, IDisposable
 {
@@ -26,15 +26,8 @@ public sealed class VpnService : IVpnService, IDisposable
     public event EventHandler? OtpRequired;
     public event EventHandler<string>? SamlLoginRequired;
 
-    // --- Output parsing patterns ---
-    private static readonly Regex IpAssignedPattern =
-        new(@"Remote IP:\s+([\d.]+)", RegexOptions.Compiled);
-    private static readonly Regex GatewayIpPattern =
-        new(@"Gateway IP:\s+([\d.]+)", RegexOptions.Compiled);
-    private static readonly Regex DnsPattern =
-        new(@"DNS:\s+([\d.]+)", RegexOptions.Compiled);
-    private static readonly Regex InterfacePattern =
-        new(@"Interface\s+(\S+)\s+is up", RegexOptions.Compiled);
+    // Collect ERROR lines from stdout as fallback for error display
+    private readonly List<string> _errorLines = new();
 
     public VpnService(ISettingsService settings, ILogger<VpnService> logger)
     {
@@ -50,12 +43,25 @@ public sealed class VpnService : IVpnService, IDisposable
         }
 
         _cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        _errorLines.Clear();
         var appSettings = _settings.Current;
 
         var args = profile.BuildArguments();
 
-        // Add verbosity flags from settings
-        args.AddRange(appSettings.LogVerbosity.ToCliFlags());
+        // Insert --json-events before verbosity flags.
+        // host:port is last in the list (Windows getopt quirk), so insert
+        // just before it so the positional argument stays at the end.
+        int insertPos = args.Count > 0 && !args[^1].StartsWith('-')
+            ? args.Count - 1
+            : args.Count;
+        args.Insert(insertPos, "--json-events");
+
+        // Add verbosity flags from settings (these go before the positional arg too)
+        foreach (var flag in appSettings.LogVerbosity.ToCliFlags())
+        {
+            args.Insert(insertPos + 1, flag);
+            insertPos++;
+        }
 
         var startInfo = new ProcessStartInfo
         {
@@ -88,8 +94,10 @@ public sealed class VpnService : IVpnService, IDisposable
                 await _process.StandardInput.FlushAsync();
             }
 
-            // Read output streams on background threads
+            // stdout → log viewer (human-readable lines)
             _ = Task.Run(() => ReadStreamAsync(_process.StandardOutput, "stdout"), _cts.Token);
+
+            // stderr → structured JSON event stream
             _ = Task.Run(() => ReadStreamAsync(_process.StandardError, "stderr"), _cts.Token);
         }
         catch (Exception ex)
@@ -154,7 +162,41 @@ public sealed class VpnService : IVpnService, IDisposable
         {
             while (await reader.ReadLineAsync() is { } line)
             {
-                ProcessOutputLine(line, source);
+                if (string.IsNullOrWhiteSpace(line))
+                    continue;
+
+                if (source == "stderr")
+                {
+                    // Structured JSON event stream
+                    var evt = EventStreamParser.Parse(line);
+                    if (evt is not null)
+                    {
+                        HandleEvent(evt);
+                    }
+                    else
+                    {
+                        _logger.LogDebug("Unparseable stderr line: {Line}", line);
+                    }
+                }
+                else
+                {
+                    // stdout: human-readable log lines for the log viewer
+                    var severity = ClassifyStdoutSeverity(line);
+
+                    var entry = new LogEntry
+                    {
+                        Timestamp = DateTime.Now,
+                        Severity = severity,
+                        Message = line.TrimStart(),
+                        RawLine = line,
+                        Source = source
+                    };
+
+                    if (severity == LogSeverity.Error)
+                        _errorLines.Add(line.TrimStart());
+
+                    LogReceived?.Invoke(this, entry);
+                }
             }
         }
         catch (OperationCanceledException) { }
@@ -164,107 +206,149 @@ public sealed class VpnService : IVpnService, IDisposable
         }
     }
 
-    private void ProcessOutputLine(string line, string source)
+    /// <summary>
+    /// Classify stdout line severity by prefix.
+    /// </summary>
+    private static LogSeverity ClassifyStdoutSeverity(string line)
     {
-        if (string.IsNullOrWhiteSpace(line)) return;
-
-        // Determine severity
-        var severity = ClassifySeverity(line);
-
-        var entry = new LogEntry
-        {
-            Timestamp = DateTime.Now,
-            Severity = severity,
-            Message = line.TrimStart(),
-            RawLine = line,
-            Source = source
-        };
-
-        LogReceived?.Invoke(this, entry);
-
-        // State machine transitions based on output patterns
-        ParseStateTransition(line);
-        ParseConnectionDetails(line);
-    }
-
-    private void ParseStateTransition(string line)
-    {
-        if (line.Contains("Resolving gateway", StringComparison.OrdinalIgnoreCase))
-        {
-            TransitionTo(ConnectionState.Connecting);
-        }
-        else if (line.Contains("Connected to gateway", StringComparison.OrdinalIgnoreCase))
-        {
-            TransitionTo(ConnectionState.Authenticating);
-        }
-        else if (line.Contains("Two-factor authentication", StringComparison.OrdinalIgnoreCase)
-                 || line.Contains("OTP", StringComparison.OrdinalIgnoreCase)
-                 || line.Contains("token", StringComparison.OrdinalIgnoreCase))
-        {
-            TransitionTo(ConnectionState.WaitingForOtp);
-            OtpRequired?.Invoke(this, EventArgs.Empty);
-        }
-        else if (line.Contains("SAML", StringComparison.OrdinalIgnoreCase)
-                 && line.Contains("http", StringComparison.OrdinalIgnoreCase))
-        {
-            TransitionTo(ConnectionState.WaitingForSaml);
-            // Extract URL for SAML login
-            var urlMatch = Regex.Match(line, @"(https?://\S+)");
-            if (urlMatch.Success)
-            {
-                SamlLoginRequired?.Invoke(this, urlMatch.Groups[1].Value);
-            }
-        }
-        else if (line.Contains("Tunnel is up", StringComparison.OrdinalIgnoreCase)
-                 || line.Contains("Interface", StringComparison.OrdinalIgnoreCase)
-                    && line.Contains("is up", StringComparison.OrdinalIgnoreCase))
-        {
-            CurrentConnection.ConnectedSince = DateTime.Now;
-            TransitionTo(ConnectionState.Connected);
-        }
-        else if (line.Contains("Tunnel went down", StringComparison.OrdinalIgnoreCase))
-        {
-            TransitionTo(ConnectionState.Reconnecting);
-            CurrentConnection.ReconnectAttempts++;
-        }
-        else if (line.Contains("authentication failed", StringComparison.OrdinalIgnoreCase)
-                 || line.Contains("permission denied", StringComparison.OrdinalIgnoreCase))
-        {
-            var (category, message) = ErrorClassifier.Classify(line);
-            CurrentConnection.ErrorMessage = message;
-            CurrentConnection.ErrorCategory = category;
-            TransitionTo(ConnectionState.Error);
-        }
-    }
-
-    private void ParseConnectionDetails(string line)
-    {
-        var ipMatch = IpAssignedPattern.Match(line);
-        if (ipMatch.Success) CurrentConnection.AssignedIp = ipMatch.Groups[1].Value;
-
-        var gwMatch = GatewayIpPattern.Match(line);
-        if (gwMatch.Success) CurrentConnection.GatewayIp = gwMatch.Groups[1].Value;
-
-        var dnsMatch = DnsPattern.Match(line);
-        if (dnsMatch.Success)
-        {
-            if (CurrentConnection.Dns1 is null)
-                CurrentConnection.Dns1 = dnsMatch.Groups[1].Value;
-            else
-                CurrentConnection.Dns2 = dnsMatch.Groups[1].Value;
-        }
-
-        var ifMatch = InterfacePattern.Match(line);
-        if (ifMatch.Success) CurrentConnection.TunnelInterface = ifMatch.Groups[1].Value;
-    }
-
-    private static LogSeverity ClassifySeverity(string line)
-    {
-        if (line.Contains("ERROR", StringComparison.OrdinalIgnoreCase)) return LogSeverity.Error;
-        if (line.Contains("WARN", StringComparison.OrdinalIgnoreCase)) return LogSeverity.Warning;
-        if (line.Contains("DEBUG", StringComparison.OrdinalIgnoreCase)) return LogSeverity.Debug;
+        if (line.StartsWith("ERROR:", StringComparison.Ordinal)) return LogSeverity.Error;
+        if (line.StartsWith("WARN:", StringComparison.Ordinal)) return LogSeverity.Warning;
+        if (line.StartsWith("DEBUG:", StringComparison.Ordinal)) return LogSeverity.Debug;
         return LogSeverity.Info;
     }
+
+    /// <summary>
+    /// Central event handler that drives the state machine from structured
+    /// JSON events emitted on stderr by openfortivpn --json-events.
+    /// </summary>
+    private void HandleEvent(VpnEvent evt)
+    {
+        _logger.LogDebug("Event: {EventType} (seq {Seq})", evt.EventType, evt.Sequence);
+
+        switch (evt)
+        {
+            case StateChangeEvent sc:
+                HandleStateChange(sc.State);
+                break;
+
+            case GatewayResolvedEvent gw:
+                CurrentConnection.GatewayIp = gw.Ip;
+                break;
+
+            case CertErrorEvent cert:
+                CurrentConnection.ErrorMessage =
+                    $"Server certificate not trusted.\n\n" +
+                    $"Certificate digest:\n{cert.Digest}\n\n" +
+                    $"Add this digest to your profile under TLS / Security > Trusted Certificate Digests.";
+                CurrentConnection.ErrorCategory = Models.ErrorCategory.CertificateError;
+                break;
+
+            case OtpRequiredEvent:
+                OtpRequired?.Invoke(this, EventArgs.Empty);
+                break;
+
+            case SamlRequiredEvent saml:
+                SamlLoginRequired?.Invoke(this, saml.Url);
+                break;
+
+            case ConfigReceivedEvent cfg:
+                CurrentConnection.Dns1 = cfg.Dns1;
+                CurrentConnection.Dns2 = cfg.Dns2;
+                CurrentConnection.DnsSuffix = cfg.DnsSuffix;
+                break;
+
+            case TunnelUpEvent tu:
+                CurrentConnection.AssignedIp = tu.LocalIp;
+                CurrentConnection.Dns1 = tu.Dns1;
+                CurrentConnection.Dns2 = tu.Dns2;
+                CurrentConnection.ConnectedSince = DateTime.Now;
+                TransitionTo(ConnectionState.Connected);
+                break;
+
+            case TunnelDownEvent:
+                // If persistent reconnect is configured, go to Reconnecting;
+                // otherwise treat as disconnected.
+                if (State == ConnectionState.Connected)
+                {
+                    CurrentConnection.ReconnectAttempts++;
+                    TransitionTo(ConnectionState.Reconnecting);
+                }
+                else
+                {
+                    TransitionTo(ConnectionState.Disconnected);
+                }
+                break;
+
+            case VpnErrorEvent err:
+                CurrentConnection.ErrorMessage = err.Message;
+                CurrentConnection.ErrorCategory = MapErrorCategory(err.Category);
+                break;
+
+            case DisconnectedEvent:
+                TransitionTo(ConnectionState.Disconnected);
+                break;
+        }
+    }
+
+    /// <summary>
+    /// Map a state_change state string to a ConnectionState and transition.
+    /// </summary>
+    private void HandleStateChange(string state)
+    {
+        switch (state)
+        {
+            case "resolving":
+                TransitionTo(ConnectionState.Connecting);
+                break;
+            case "connecting_tls":
+                TransitionTo(ConnectionState.Connecting);
+                break;
+            case "authenticating":
+                TransitionTo(ConnectionState.Authenticating);
+                break;
+            case "waiting_otp":
+                TransitionTo(ConnectionState.WaitingForOtp);
+                OtpRequired?.Invoke(this, EventArgs.Empty);
+                break;
+            case "waiting_saml":
+                TransitionTo(ConnectionState.WaitingForSaml);
+                break;
+            case "allocating":
+                TransitionTo(ConnectionState.Authenticating);
+                break;
+            case "configuring":
+            case "creating_adapter":
+            case "tunneling":
+                TransitionTo(ConnectionState.NegotiatingTunnel);
+                break;
+            case "connected":
+                CurrentConnection.ConnectedSince = DateTime.Now;
+                TransitionTo(ConnectionState.Connected);
+                break;
+            case "disconnecting":
+                TransitionTo(ConnectionState.Disconnecting);
+                break;
+            case "disconnected":
+                TransitionTo(ConnectionState.Disconnected);
+                break;
+        }
+    }
+
+    /// <summary>
+    /// Map the error category string from a VpnErrorEvent to the ErrorCategory enum.
+    /// </summary>
+    private static Models.ErrorCategory MapErrorCategory(string category) => category switch
+    {
+        "network_unreachable" => Models.ErrorCategory.NetworkUnreachable,
+        "dns_resolution_failed" => Models.ErrorCategory.DnsResolutionFailed,
+        "authentication_failed" => Models.ErrorCategory.AuthenticationFailed,
+        "certificate_error" => Models.ErrorCategory.CertificateError,
+        "tunnel_setup_failed" => Models.ErrorCategory.TunnelSetupFailed,
+        "permission_denied" => Models.ErrorCategory.PermissionDenied,
+        "configuration_error" => Models.ErrorCategory.ConfigurationError,
+        "timeout" => Models.ErrorCategory.Timeout,
+        _ => Models.ErrorCategory.Unknown,
+    };
 
     private void TransitionTo(ConnectionState newState)
     {
@@ -283,20 +367,66 @@ public sealed class VpnService : IVpnService, IDisposable
         var exitCode = _process.ExitCode;
         _logger.LogInformation("openfortivpn exited with code {ExitCode}", exitCode);
 
-        if (State == ConnectionState.Disconnecting)
+        if (State == ConnectionState.Disconnecting || State == ConnectionState.Disconnected)
         {
             TransitionTo(ConnectionState.Disconnected);
+            return;
         }
-        else if (exitCode != 0 && State != ConnectionState.Error)
+
+        // Map exit codes to precise error categories
+        switch (exitCode)
         {
-            CurrentConnection.ErrorMessage = $"VPN process exited unexpectedly (code {exitCode}).";
-            CurrentConnection.ErrorCategory = Models.ErrorCategory.ProcessCrashed;
+            case 0:
+                TransitionTo(ConnectionState.Disconnected);
+                return;
+            case 10:
+                SetExitError(Models.ErrorCategory.DnsResolutionFailed,
+                    "Cannot find the VPN server. Check the server address or your internet connection.");
+                break;
+            case 11:
+                SetExitError(Models.ErrorCategory.NetworkUnreachable,
+                    "Cannot reach the VPN server. Check your internet connection and firewall settings.");
+                break;
+            case 12:
+            case 13:
+                SetExitError(Models.ErrorCategory.CertificateError,
+                    "Server certificate verification failed. Add the certificate digest to your profile's trusted certificates.");
+                break;
+            case 20:
+                SetExitError(Models.ErrorCategory.AuthenticationFailed,
+                    "Login failed. Please verify your username and password.");
+                break;
+            case 50:
+                SetExitError(Models.ErrorCategory.PermissionDenied,
+                    "Administrator privileges are required to create the VPN tunnel.");
+                break;
+            default:
+                SetExitError(Models.ErrorCategory.ProcessCrashed,
+                    $"VPN process exited unexpectedly (code {exitCode}).");
+                break;
+        }
+
+        // If we collected error lines from stdout and the error message is
+        // still the generic exit-code-based one, replace with the real output.
+        if (_errorLines.Count > 0 && CurrentConnection.ErrorMessage is not null
+            && CurrentConnection.ErrorMessage.Contains("(code "))
+        {
+            CurrentConnection.ErrorMessage = string.Join("\n", _errorLines);
+        }
+
+        if (State != ConnectionState.Error)
+        {
             TransitionTo(ConnectionState.Error);
         }
-        else if (State != ConnectionState.Error)
-        {
-            TransitionTo(ConnectionState.Disconnected);
-        }
+    }
+
+    private void SetExitError(Models.ErrorCategory category, string message)
+    {
+        if (CurrentConnection.ErrorCategory is null)
+            CurrentConnection.ErrorCategory = category;
+
+        if (string.IsNullOrEmpty(CurrentConnection.ErrorMessage))
+            CurrentConnection.ErrorMessage = message;
     }
 
     public void Dispose()

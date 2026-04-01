@@ -51,13 +51,9 @@ public class VpnProfile
     {
         var args = new List<string>();
 
-        // Positional: host:port
-        if (!string.IsNullOrWhiteSpace(GatewayHost))
-        {
-            args.Add(GatewayPort != 443
-                ? $"{GatewayHost}:{GatewayPort}"
-                : GatewayHost);
-        }
+        // NOTE: positional host:port is added LAST because the bundled
+        // Windows getopt does not permute non-option arguments to the end
+        // like GNU getopt does. If placed first, it stops option parsing.
 
         if (!string.IsNullOrWhiteSpace(Username))
         {
@@ -146,6 +142,14 @@ public class VpnProfile
 
         // Always verbose for GUI parsing
         args.Add("-v");
+
+        // Positional host:port MUST be last (Windows getopt quirk)
+        if (!string.IsNullOrWhiteSpace(GatewayHost))
+        {
+            args.Add(GatewayPort != 443
+                ? $"{GatewayHost}:{GatewayPort}"
+                : GatewayHost);
+        }
 
         return args;
     }

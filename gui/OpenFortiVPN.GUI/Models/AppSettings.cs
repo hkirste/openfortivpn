@@ -13,8 +13,8 @@ public class AppSettings
 
     // --- UI ---
     public ThemeMode Theme { get; set; } = ThemeMode.System;
-    public bool MinimizeToTray { get; set; } = true;
-    public bool CloseToTray { get; set; } = true;
+    public bool MinimizeToTray { get; set; }
+    public bool CloseToTray { get; set; }
     public bool ShowNotifications { get; set; } = true;
     public bool ShowConnectionDuration { get; set; } = true;
 

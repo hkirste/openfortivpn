@@ -14,6 +14,7 @@ find_package(OpenSSL REQUIRED)
 # Common sources (platform-independent)
 set(COMMON_SOURCES
     src/config.c
+    src/event.c
     src/hdlc.c
     src/http.c
     src/xml.c
