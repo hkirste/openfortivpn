@@ -181,6 +181,55 @@ public class VpnServiceIntegrationTests : IDisposable
         svc.State.Should().Be(ConnectionState.Disconnected);
     }
 
+    [Fact]
+    public async Task OtpRequired_SubmitOtp_ThenConnects()
+    {
+        using var svc = CreateService("otp_required");
+        var otpRequested = new TaskCompletionSource();
+        var connected = new TaskCompletionSource();
+
+        svc.OtpRequired += (_, _) => otpRequested.TrySetResult();
+        svc.StateChanged += (_, s) =>
+        {
+            if (s == ConnectionState.Connected)
+                connected.TrySetResult();
+        };
+
+        await svc.ConnectAsync(TestProfile(), "testpass");
+
+        // Wait for OTP prompt
+        var gotOtp = await Task.WhenAny(otpRequested.Task, Task.Delay(10_000));
+        gotOtp.Should().Be(otpRequested.Task, "should request OTP");
+
+        // Submit OTP
+        await svc.SubmitOtpAsync("123456");
+
+        // Should reach connected
+        var completed = await Task.WhenAny(connected.Task, Task.Delay(10_000));
+        completed.Should().Be(connected.Task, "should reach Connected after OTP");
+        svc.CurrentConnection.AssignedIp.Should().Be("10.211.1.42");
+    }
+
+    [Fact]
+    public async Task LogReceived_EmitsDuringConnection()
+    {
+        using var svc = CreateService("successful_connect");
+        var logs = new List<LogEntry>();
+        var connected = new TaskCompletionSource();
+
+        svc.LogReceived += (_, entry) => logs.Add(entry);
+        svc.StateChanged += (_, s) =>
+        {
+            if (s == ConnectionState.Connected)
+                connected.TrySetResult();
+        };
+
+        await svc.ConnectAsync(TestProfile(), "testpass");
+        await Task.WhenAny(connected.Task, Task.Delay(10_000));
+
+        logs.Should().NotBeEmpty("should receive log entries from stdout");
+    }
+
     public void Dispose()
     {
         _svc?.Dispose();
