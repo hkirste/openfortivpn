@@ -34,6 +34,43 @@
 #include <stdlib.h>
 #include <string.h>
 
+#ifdef _WIN32
+#include <strings.h> /* strncasecmp */
+/*
+ * memmem() and strcasestr() are GNU extensions not available on Windows.
+ */
+static void *memmem(const void *haystack, size_t hlen,
+                    const void *needle, size_t nlen)
+{
+	const unsigned char *p = haystack;
+
+	if (nlen == 0)
+		return (void *)haystack;
+	if (nlen > hlen)
+		return NULL;
+
+	for (size_t i = 0; i <= hlen - nlen; i++) {
+		if (memcmp(p + i, needle, nlen) == 0)
+			return (void *)(p + i);
+	}
+	return NULL;
+}
+
+static const char *strcasestr(const char *haystack, const char *needle)
+{
+	size_t nlen = strlen(needle);
+
+	if (nlen == 0)
+		return haystack;
+
+	for (; *haystack; haystack++) {
+		if (strncasecmp(haystack, needle, nlen) == 0)
+			return haystack;
+	}
+	return NULL;
+}
+#endif
+
 /*
  * Fixed size of the buffer for outgoing HTTP requests.
  * Initial size of the buffer for incoming HTTP responses.
