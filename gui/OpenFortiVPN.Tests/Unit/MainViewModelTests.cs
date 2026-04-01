@@ -179,6 +179,7 @@ public class MainViewModelTests
 
     // --- Mocks ---
 
+    #pragma warning disable CS0067
     private sealed class MockVpnService : IVpnService
     {
         public ConnectionState State { get; set; } = ConnectionState.Disconnected;
@@ -208,6 +209,7 @@ public class MainViewModelTests
         }
     }
 
+    #pragma warning disable CS0067
     private sealed class MockSettingsService : ISettingsService
     {
         public AppSettings Current { get; } = new();
@@ -215,6 +217,7 @@ public class MainViewModelTests
         public Task SaveAsync() => Task.CompletedTask;
     }
 
+    #pragma warning disable CS0067
     private sealed class MockProfileService : IProfileService
     {
         public IReadOnlyList<VpnProfile> Profiles => new List<VpnProfile>();
@@ -227,6 +230,7 @@ public class MainViewModelTests
         public VpnProfile DuplicateProfile(VpnProfile s) => new();
     }
 
+    #pragma warning disable CS0067
     private sealed class MockCredentialService : ICredentialService
     {
         public void SavePassword(Guid id, string pw) { }
@@ -235,6 +239,7 @@ public class MainViewModelTests
         public bool HasPassword(Guid id) => false;
     }
 
+    #pragma warning disable CS0067
     private sealed class MockNotificationService : INotificationService
     {
         public void ShowInfo(string t, string m) { }
@@ -245,3 +250,4 @@ public class MainViewModelTests
         public void ShowReconnecting(string n, int a) { }
     }
 }
+#pragma warning restore CS0067

@@ -184,6 +184,7 @@ public class LogViewerViewModelTests
 
     // --- Mocks ---
 
+    #pragma warning disable CS0067
     private sealed class MockVpnService : IVpnService
     {
         public ConnectionState State { get; set; }
@@ -204,6 +205,7 @@ public class LogViewerViewModelTests
             LogReceived?.Invoke(this, e);
     }
 
+    #pragma warning disable CS0067
     private sealed class MockSettingsService : ISettingsService
     {
         public AppSettings Current { get; } = new();
@@ -211,3 +213,4 @@ public class LogViewerViewModelTests
         public Task SaveAsync() => Task.CompletedTask;
     }
 }
+#pragma warning restore CS0067

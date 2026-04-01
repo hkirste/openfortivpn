@@ -176,6 +176,7 @@ public class ProfileEditorViewModelTests
 
     // --- Mocks ---
 
+    #pragma warning disable CS0067
     private sealed class MockProfileService : IProfileService
     {
         public VpnProfile? SavedProfile { get; private set; }
@@ -195,6 +196,7 @@ public class ProfileEditorViewModelTests
         public VpnProfile DuplicateProfile(VpnProfile s) => new();
     }
 
+    #pragma warning disable CS0067
     private sealed class MockCredentialService : ICredentialService
     {
         public Dictionary<Guid, string> SavedPasswords { get; } = new();
@@ -209,6 +211,7 @@ public class ProfileEditorViewModelTests
         public bool HasPassword(Guid id) => SavedPasswords.ContainsKey(id);
     }
 
+    #pragma warning disable CS0067
     private sealed class MockNavigationService : INavigationService
     {
         public bool WentBack { get; private set; }
@@ -225,3 +228,4 @@ public class ProfileEditorViewModelTests
         public void GoBack() => WentBack = true;
     }
 }
+#pragma warning restore CS0067

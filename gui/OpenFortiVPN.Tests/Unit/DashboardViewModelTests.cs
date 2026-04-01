@@ -149,6 +149,7 @@ public class DashboardViewModelTests
 
     // --- Mock implementations ---
 
+    #pragma warning disable CS0067
     private sealed class MockVpnService : IVpnService
     {
         public ConnectionState State { get; set; } = ConnectionState.Disconnected;
@@ -176,6 +177,7 @@ public class DashboardViewModelTests
             LogReceived?.Invoke(this, e);
     }
 
+    #pragma warning disable CS0067
     private sealed class MockProfileService : IProfileService
     {
         private readonly List<VpnProfile> _profiles = new();
@@ -191,6 +193,7 @@ public class DashboardViewModelTests
         public VpnProfile DuplicateProfile(VpnProfile s) => new();
     }
 
+    #pragma warning disable CS0067
     private sealed class MockCredentialService : ICredentialService
     {
         public void SavePassword(Guid id, string pass) { }
@@ -199,6 +202,7 @@ public class DashboardViewModelTests
         public bool HasPassword(Guid id) => false;
     }
 
+    #pragma warning disable CS0067
     private sealed class MockNavigationService : INavigationService
     {
         public CommunityToolkit.Mvvm.ComponentModel.ObservableObject CurrentViewModel { get; set; } = null!;
@@ -209,6 +213,7 @@ public class DashboardViewModelTests
         public void GoBack() { }
     }
 
+    #pragma warning disable CS0067
     private sealed class MockNotificationService : INotificationService
     {
         public void ShowInfo(string t, string m) { }
@@ -219,3 +224,4 @@ public class DashboardViewModelTests
         public void ShowReconnecting(string n, int a) { }
     }
 }
+#pragma warning restore CS0067
