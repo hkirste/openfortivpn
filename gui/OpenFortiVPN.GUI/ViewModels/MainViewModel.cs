@@ -1,5 +1,4 @@
 using System.Collections.ObjectModel;
-using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using OpenFortiVPN.GUI.Models;
@@ -16,6 +15,7 @@ public partial class MainViewModel : ObservableObject
     private readonly INavigationService _navigation;
     private readonly IVpnService _vpnService;
     private readonly ISettingsService _settingsService;
+    private readonly IDispatcherService _dispatcher;
 
     [ObservableProperty]
     private ObservableObject? _currentView;
@@ -41,11 +41,13 @@ public partial class MainViewModel : ObservableObject
     public MainViewModel(
         INavigationService navigation,
         IVpnService vpnService,
-        ISettingsService settingsService)
+        ISettingsService settingsService,
+        IDispatcherService dispatcher)
     {
         _navigation = navigation;
         _vpnService = vpnService;
         _settingsService = settingsService;
+        _dispatcher = dispatcher;
 
         // Subscribe to navigation changes
         _navigation.Navigated += (_, vm) => CurrentView = vm;
@@ -59,7 +61,7 @@ public partial class MainViewModel : ObservableObject
 
     private void OnVpnStateChanged(object? sender, ConnectionState newState)
     {
-        Application.Current?.Dispatcher.Invoke(() =>
+        _dispatcher.Invoke(() =>
         {
             ConnectionState = newState;
             StatusText = newState switch
@@ -114,25 +116,6 @@ public partial class MainViewModel : ObservableObject
         {
             IsWindowVisible = false;
         }
-    }
-
-    [RelayCommand]
-    private async Task ExitApplication()
-    {
-        if (_vpnService.IsActive)
-        {
-            var result = MessageBox.Show(
-                "A VPN connection is active. Disconnect and exit?",
-                "OpenFortiVPN",
-                MessageBoxButton.YesNo,
-                MessageBoxImage.Question);
-
-            if (result != MessageBoxResult.Yes) return;
-
-            await _vpnService.DisconnectAsync();
-        }
-
-        Application.Current?.Shutdown();
     }
 
     [RelayCommand]

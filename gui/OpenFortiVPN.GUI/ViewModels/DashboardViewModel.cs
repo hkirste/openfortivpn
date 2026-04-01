@@ -1,6 +1,5 @@
 using System.Collections.ObjectModel;
-using System.Windows;
-using System.Windows.Threading;
+using System.Timers;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using OpenFortiVPN.GUI.Models;
@@ -19,7 +18,8 @@ public partial class DashboardViewModel : ObservableObject
     private readonly ICredentialService _credentialService;
     private readonly INavigationService _navigation;
     private readonly INotificationService _notifications;
-    private readonly DispatcherTimer _durationTimer;
+    private readonly IDispatcherService _dispatcher;
+    private readonly System.Timers.Timer _durationTimer;
 
     // --- Connection State ---
 
@@ -90,24 +90,27 @@ public partial class DashboardViewModel : ObservableObject
         IProfileService profileService,
         ICredentialService credentialService,
         INavigationService navigation,
-        INotificationService notifications)
+        INotificationService notifications,
+        IDispatcherService dispatcher)
     {
         _vpnService = vpnService;
         _profileService = profileService;
         _credentialService = credentialService;
         _navigation = navigation;
         _notifications = notifications;
+        _dispatcher = dispatcher;
 
-        // Duration timer
-        _durationTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
-        _durationTimer.Tick += (_, _) => UpdateDuration();
+        // Duration timer (non-WPF timer for testability)
+        _durationTimer = new System.Timers.Timer(1000);
+        _durationTimer.Elapsed += (_, _) =>
+            _dispatcher.Invoke(UpdateDuration);
 
         // Wire up events
         _vpnService.StateChanged += OnStateChanged;
         _vpnService.LogReceived += OnLogReceived;
         _vpnService.OtpRequired += (_, _) =>
         {
-            Application.Current?.Dispatcher.Invoke(() =>
+            _dispatcher.Invoke(() =>
             {
                 IsOtpRequired = true;
                 StatusText = "Enter your one-time password (OTP)";
@@ -200,7 +203,7 @@ public partial class DashboardViewModel : ObservableObject
 
     private void OnStateChanged(object? sender, ConnectionState newState)
     {
-        Application.Current?.Dispatcher.Invoke(() =>
+        _dispatcher.Invoke(() =>
         {
             ConnectionState = newState;
             IsConnected = newState == ConnectionState.Connected;
@@ -275,7 +278,7 @@ public partial class DashboardViewModel : ObservableObject
 
     private void OnLogReceived(object? sender, LogEntry entry)
     {
-        Application.Current?.Dispatcher.Invoke(() =>
+        _dispatcher.Invoke(() =>
         {
             RecentLogs.Add(entry);
             while (RecentLogs.Count > 50)

@@ -82,6 +82,7 @@ public partial class App : Application
         services.AddSingleton<IVpnService, VpnService>();
         services.AddSingleton<INotificationService, NotificationService>();
         services.AddSingleton<INavigationService, NavigationService>();
+        services.AddSingleton<IDispatcherService, WpfDispatcherService>();
 
         // ViewModels (transient — new per navigation)
         services.AddTransient<MainViewModel>();

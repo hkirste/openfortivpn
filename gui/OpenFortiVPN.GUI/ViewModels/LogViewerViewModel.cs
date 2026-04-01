@@ -16,6 +16,7 @@ public partial class LogViewerViewModel : ObservableObject
 {
     private readonly IVpnService _vpnService;
     private readonly ISettingsService _settingsService;
+    private readonly IDispatcherService _dispatcher;
     private readonly List<LogEntry> _allLogs = new();
 
     public ObservableCollection<LogEntry> FilteredLogs { get; } = new();
@@ -44,17 +45,20 @@ public partial class LogViewerViewModel : ObservableObject
     [ObservableProperty]
     private int _visibleEntries;
 
-    public LogViewerViewModel(IVpnService vpnService, ISettingsService settingsService)
+    public LogViewerViewModel(IVpnService vpnService,
+                             ISettingsService settingsService,
+                             IDispatcherService dispatcher)
     {
         _vpnService = vpnService;
         _settingsService = settingsService;
+        _dispatcher = dispatcher;
 
         _vpnService.LogReceived += OnLogReceived;
     }
 
     private void OnLogReceived(object? sender, LogEntry entry)
     {
-        Application.Current?.Dispatcher.Invoke(() =>
+        _dispatcher.Invoke(() =>
         {
             _allLogs.Add(entry);
 
