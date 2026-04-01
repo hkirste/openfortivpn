@@ -85,6 +85,47 @@ jobs:
           files: build/openfortivpn-windows-x64.zip
           generate_release_notes: true
 
+  build-windows-gui:
+    name: Build Windows GUI
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v6
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Restore Dependencies
+        run: dotnet restore gui/OpenFortiVPN.GUI.sln
+
+      - name: Build GUI (Release)
+        run: >-
+          dotnet publish gui/OpenFortiVPN.GUI/OpenFortiVPN.GUI.csproj
+          -c Release
+          -r win-x64
+          --self-contained true
+          -p:PublishSingleFile=true
+          -p:IncludeNativeLibrariesForSelfExtract=true
+          -p:EnableCompressionInSingleFile=true
+          -o gui-publish
+
+      - name: Package GUI
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path openfortivpn-gui-windows-x64
+          Copy-Item gui-publish/OpenFortiVPN.GUI.exe openfortivpn-gui-windows-x64/
+          Copy-Item gui/README.md openfortivpn-gui-windows-x64/
+          Compress-Archive -Path openfortivpn-gui-windows-x64/* -DestinationPath openfortivpn-gui-windows-x64.zip
+
+      - name: Upload GUI Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: openfortivpn-gui-windows-x64.zip
+          generate_release_notes: true
+
   build-linux:
     name: Build Linux Release
     runs-on: ubuntu-latest

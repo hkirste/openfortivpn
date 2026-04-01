@@ -137,7 +137,7 @@ Single-window application with content-area navigation:
 │ │ ● Home  │                                  │
 │ │   Profs │    [Content Area]                │
 │ │   Logs  │                                  │
-│ │   Setts │    Loaded Views:                 │
+│ │   Conf  │    Loaded Views:                 │
 │ │         │    - DashboardView               │
 │ │         │    - ProfileEditorView            │
 │ │         │    - LogViewerView               │
