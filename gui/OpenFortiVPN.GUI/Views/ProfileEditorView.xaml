@@ -1,0 +1,315 @@
+<UserControl x:Class="OpenFortiVPN.GUI.Views.ProfileEditorView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="clr-namespace:OpenFortiVPN.GUI.ViewModels"
+             xmlns:converters="clr-namespace:OpenFortiVPN.GUI.Converters"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance vm:ProfileEditorViewModel}"
+             Background="{StaticResource BackgroundBrush}">
+
+    <UserControl.Resources>
+        <converters:BoolToVisibilityConverter x:Key="BoolToVis" />
+    </UserControl.Resources>
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="32,28">
+        <StackPanel MaxWidth="600">
+
+            <!-- Header -->
+            <TextBlock Text="{Binding PageTitle}"
+                       Style="{StaticResource TitleLargeStyle}"
+                       Margin="0,0,0,24" />
+
+            <!-- Validation Error -->
+            <Border Visibility="{Binding ValidationError, Converter={StaticResource BoolToVis}}"
+                    Background="{StaticResource ErrorLightBrush}"
+                    CornerRadius="4"
+                    Padding="12,8"
+                    Margin="0,0,0,16">
+                <TextBlock Text="{Binding ValidationError}"
+                           Foreground="{StaticResource ErrorBrush}"
+                           Style="{StaticResource BodyStyle}" />
+            </Border>
+
+            <!-- ============ BASIC SETTINGS ============ -->
+            <Border Style="{StaticResource CardStyle}" Margin="0,0,0,12">
+                <StackPanel>
+                    <TextBlock Text="Connection"
+                               Style="{StaticResource SubtitleStyle}"
+                               Margin="0,0,0,16" />
+
+                    <!-- Profile Name -->
+                    <TextBlock Text="Profile Name" Style="{StaticResource CaptionStyle}"
+                               Margin="0,0,0,4" />
+                    <TextBox Text="{Binding ProfileName, UpdateSourceTrigger=PropertyChanged}"
+                             Style="{StaticResource ModernTextBoxStyle}"
+                             Margin="0,0,0,12" />
+
+                    <!-- Server Address -->
+                    <TextBlock Text="Server Address" Style="{StaticResource CaptionStyle}"
+                               Margin="0,0,0,4" />
+                    <Grid Margin="0,0,0,12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="8" />
+                            <ColumnDefinition Width="100" />
+                        </Grid.ColumnDefinitions>
+                        <TextBox Grid.Column="0"
+                                 Text="{Binding GatewayHost, UpdateSourceTrigger=PropertyChanged}"
+                                 Style="{StaticResource ModernTextBoxStyle}" />
+                        <TextBox Grid.Column="2"
+                                 Text="{Binding GatewayPort, UpdateSourceTrigger=PropertyChanged}"
+                                 Style="{StaticResource ModernTextBoxStyle}"
+                                 ToolTip="Port (default: 443)" />
+                    </Grid>
+
+                    <!-- Username -->
+                    <TextBlock Text="Username" Style="{StaticResource CaptionStyle}"
+                               Margin="0,0,0,4" />
+                    <TextBox Text="{Binding Username, UpdateSourceTrigger=PropertyChanged}"
+                             Style="{StaticResource ModernTextBoxStyle}"
+                             Margin="0,0,0,12" />
+
+                    <!-- Password -->
+                    <TextBlock Text="Password" Style="{StaticResource CaptionStyle}"
+                               Margin="0,0,0,4" />
+                    <PasswordBox Style="{StaticResource ModernPasswordBoxStyle}"
+                                 Margin="0,0,0,8" />
+
+                    <CheckBox Content="Save password (encrypted)"
+                              IsChecked="{Binding SavePassword}"
+                              Style="{StaticResource ModernCheckBoxStyle}"
+                              Margin="0,0,0,4" />
+
+                    <TextBlock Text="Password is encrypted using Windows DPAPI and stored locally."
+                               Style="{StaticResource CaptionStyle}"
+                               Margin="0,0,0,0" />
+                </StackPanel>
+            </Border>
+
+            <!-- ============ AUTHENTICATION SECTION ============ -->
+            <Border Style="{StaticResource CardStyle}" Margin="0,0,0,12">
+                <Expander Style="{StaticResource SectionExpanderStyle}"
+                          IsExpanded="{Binding ShowAuthSection}"
+                          Header="Authentication">
+                    <StackPanel Margin="0,12,0,0">
+                        <TextBlock Text="Method" Style="{StaticResource CaptionStyle}"
+                                   Margin="0,0,0,4" />
+                        <ComboBox ItemsSource="{Binding AuthMethods}"
+                                  SelectedItem="{Binding AuthMethod}"
+                                  Style="{StaticResource ModernComboBoxStyle}"
+                                  Margin="0,0,0,12" />
+
+                        <!-- Realm -->
+                        <TextBlock Text="Realm (optional)" Style="{StaticResource CaptionStyle}"
+                                   Margin="0,0,0,4" />
+                        <TextBox Text="{Binding Realm, UpdateSourceTrigger=PropertyChanged}"
+                                 Style="{StaticResource ModernTextBoxStyle}"
+                                 Margin="0,0,0,12" />
+
+                        <!-- Client Certificate -->
+                        <TextBlock Text="Client Certificate" Style="{StaticResource CaptionStyle}"
+                                   Margin="0,0,0,4" />
+                        <Grid Margin="0,0,0,12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBox Grid.Column="0"
+                                     Text="{Binding UserCertPath}"
+                                     Style="{StaticResource ModernTextBoxStyle}"
+                                     IsReadOnly="True"
+                                     Margin="0,0,8,0" />
+                            <Button Grid.Column="1"
+                                    Content="Browse..."
+                                    Style="{StaticResource SecondaryButtonStyle}"
+                                    Command="{Binding BrowseUserCertCommand}" />
+                        </Grid>
+
+                        <!-- Private Key -->
+                        <TextBlock Text="Private Key" Style="{StaticResource CaptionStyle}"
+                                   Margin="0,0,0,4" />
+                        <Grid Margin="0,0,0,12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBox Grid.Column="0"
+                                     Text="{Binding UserKeyPath}"
+                                     Style="{StaticResource ModernTextBoxStyle}"
+                                     IsReadOnly="True"
+                                     Margin="0,0,8,0" />
+                            <Button Grid.Column="1"
+                                    Content="Browse..."
+                                    Style="{StaticResource SecondaryButtonStyle}"
+                                    Command="{Binding BrowseUserKeyCommand}" />
+                        </Grid>
+
+                        <!-- SAML -->
+                        <CheckBox Content="Use SAML authentication"
+                                  IsChecked="{Binding UseSaml}"
+                                  Style="{StaticResource ModernCheckBoxStyle}"
+                                  Margin="0,0,0,4" />
+                    </StackPanel>
+                </Expander>
+            </Border>
+
+            <!-- ============ NETWORK SECTION ============ -->
+            <Border Style="{StaticResource CardStyle}" Margin="0,0,0,12">
+                <Expander Style="{StaticResource SectionExpanderStyle}"
+                          IsExpanded="{Binding ShowNetworkSection}"
+                          Header="Network &amp; Routing">
+                    <StackPanel Margin="0,12,0,0">
+                        <CheckBox Content="Configure routes through VPN"
+                                  IsChecked="{Binding SetRoutes}"
+                                  Style="{StaticResource ModernCheckBoxStyle}"
+                                  Margin="0,0,0,8" />
+
+                        <CheckBox Content="Configure DNS from VPN server"
+                                  IsChecked="{Binding SetDns}"
+                                  Style="{StaticResource ModernCheckBoxStyle}"
+                                  Margin="0,0,0,8" />
+
+                        <CheckBox Content="Use half-internet routes (split routing)"
+                                  IsChecked="{Binding HalfInternetRoutes}"
+                                  Style="{StaticResource ModernCheckBoxStyle}"
+                                  Margin="0,0,0,4" />
+
+                        <TextBlock Text="When enabled, routes 0.0.0.0/1 and 128.0.0.0/1 are used instead of replacing the default route."
+                                   Style="{StaticResource CaptionStyle}"
+                                   TextWrapping="Wrap"
+                                   Margin="24,0,0,0" />
+                    </StackPanel>
+                </Expander>
+            </Border>
+
+            <!-- ============ SECURITY SECTION ============ -->
+            <Border Style="{StaticResource CardStyle}" Margin="0,0,0,12">
+                <Expander Style="{StaticResource SectionExpanderStyle}"
+                          IsExpanded="{Binding ShowSecuritySection}"
+                          Header="TLS / Security">
+                    <StackPanel Margin="0,12,0,0">
+
+                        <!-- CA File -->
+                        <TextBlock Text="Custom CA Certificate" Style="{StaticResource CaptionStyle}"
+                                   Margin="0,0,0,4" />
+                        <Grid Margin="0,0,0,12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBox Grid.Column="0"
+                                     Text="{Binding CaFilePath}"
+                                     Style="{StaticResource ModernTextBoxStyle}"
+                                     IsReadOnly="True"
+                                     Margin="0,0,8,0" />
+                            <Button Grid.Column="1"
+                                    Content="Browse..."
+                                    Style="{StaticResource SecondaryButtonStyle}"
+                                    Command="{Binding BrowseCaFileCommand}" />
+                        </Grid>
+
+                        <!-- Trusted Certs -->
+                        <TextBlock Text="Trusted Certificate Digests (SHA256, one per line)"
+                                   Style="{StaticResource CaptionStyle}"
+                                   Margin="0,0,0,4" />
+                        <TextBox Text="{Binding TrustedCertsText, UpdateSourceTrigger=PropertyChanged}"
+                                 Style="{StaticResource ModernTextBoxStyle}"
+                                 AcceptsReturn="True"
+                                 Height="80"
+                                 FontFamily="{StaticResource MonoFont}"
+                                 FontSize="11"
+                                 Margin="0,0,0,12" />
+
+                        <!-- Min TLS -->
+                        <TextBlock Text="Minimum TLS Version" Style="{StaticResource CaptionStyle}"
+                                   Margin="0,0,0,4" />
+                        <ComboBox ItemsSource="{Binding TlsVersions}"
+                                  SelectedItem="{Binding MinTlsVersion}"
+                                  Style="{StaticResource ModernComboBoxStyle}"
+                                  Margin="0,0,0,12" />
+
+                        <!-- SNI Override -->
+                        <TextBlock Text="SNI Override (optional)" Style="{StaticResource CaptionStyle}"
+                                   Margin="0,0,0,4" />
+                        <TextBox Text="{Binding SniOverride, UpdateSourceTrigger=PropertyChanged}"
+                                 Style="{StaticResource ModernTextBoxStyle}"
+                                 Margin="0,0,0,12" />
+
+                        <!-- Insecure SSL Warning -->
+                        <CheckBox Content="Allow insecure SSL/TLS (NOT recommended)"
+                                  IsChecked="{Binding InsecureSsl}"
+                                  Style="{StaticResource ModernCheckBoxStyle}"
+                                  Foreground="{StaticResource ErrorBrush}"
+                                  Margin="0,0,0,4" />
+
+                        <Border Visibility="{Binding InsecureSsl, Converter={StaticResource BoolToVis}}"
+                                Background="{StaticResource WarningLightBrush}"
+                                CornerRadius="4"
+                                Padding="12,8"
+                                Margin="0,4,0,0">
+                            <TextBlock Text="Warning: Enabling insecure SSL allows weak protocols and ciphers. Only use this for testing."
+                                       Style="{StaticResource CaptionStyle}"
+                                       Foreground="{StaticResource WarningBrush}"
+                                       TextWrapping="Wrap" />
+                        </Border>
+                    </StackPanel>
+                </Expander>
+            </Border>
+
+            <!-- ============ ADVANCED SECTION ============ -->
+            <Border Style="{StaticResource CardStyle}" Margin="0,0,0,12">
+                <Expander Style="{StaticResource SectionExpanderStyle}"
+                          IsExpanded="{Binding ShowAdvancedSection}"
+                          Header="Advanced">
+                    <StackPanel Margin="0,12,0,0">
+                        <CheckBox Content="Auto-reconnect on disconnect"
+                                  IsChecked="{Binding EnablePersistent}"
+                                  Style="{StaticResource ModernCheckBoxStyle}"
+                                  Margin="0,0,0,8" />
+
+                        <StackPanel Visibility="{Binding EnablePersistent,
+                                                 Converter={StaticResource BoolToVis}}"
+                                    Margin="24,0,0,12">
+                            <TextBlock Text="Reconnect interval (seconds)"
+                                       Style="{StaticResource CaptionStyle}"
+                                       Margin="0,0,0,4" />
+                            <TextBox Text="{Binding PersistentInterval}"
+                                     Style="{StaticResource ModernTextBoxStyle}"
+                                     Width="120"
+                                     HorizontalAlignment="Left" />
+                        </StackPanel>
+
+                        <!-- Cipher List -->
+                        <TextBlock Text="Custom Cipher List (optional)"
+                                   Style="{StaticResource CaptionStyle}"
+                                   Margin="0,0,0,4" />
+                        <TextBox Text="{Binding CipherList, UpdateSourceTrigger=PropertyChanged}"
+                                 Style="{StaticResource ModernTextBoxStyle}"
+                                 FontFamily="{StaticResource MonoFont}"
+                                 FontSize="11"
+                                 Margin="0,0,0,8" />
+
+                        <CheckBox Content="Reduce security level (seclevel-1)"
+                                  IsChecked="{Binding SecurityLevel1}"
+                                  Style="{StaticResource ModernCheckBoxStyle}" />
+                    </StackPanel>
+                </Expander>
+            </Border>
+
+            <!-- ============ ACTION BUTTONS ============ -->
+            <StackPanel Orientation="Horizontal" Margin="0,8,0,32">
+                <Button Content="Save Profile"
+                        Style="{StaticResource PrimaryButtonStyle}"
+                        Command="{Binding SaveCommand}"
+                        Margin="0,0,8,0" />
+
+                <Button Content="Cancel"
+                        Style="{StaticResource SecondaryButtonStyle}"
+                        Command="{Binding CancelCommand}" />
+            </StackPanel>
+
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

@@ -1,0 +1,160 @@
+<UserControl x:Class="OpenFortiVPN.GUI.Views.SettingsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="clr-namespace:OpenFortiVPN.GUI.ViewModels"
+             xmlns:converters="clr-namespace:OpenFortiVPN.GUI.Converters"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance vm:SettingsViewModel}"
+             Background="{StaticResource BackgroundBrush}">
+
+    <UserControl.Resources>
+        <converters:BoolToVisibilityConverter x:Key="BoolToVis" />
+    </UserControl.Resources>
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="32,28">
+        <StackPanel MaxWidth="600">
+
+            <TextBlock Text="Settings"
+                       Style="{StaticResource TitleLargeStyle}"
+                       Margin="0,0,0,24" />
+
+            <!-- Status Message -->
+            <Border Visibility="{Binding StatusMessage, Converter={StaticResource BoolToVis}}"
+                    Background="{StaticResource SuccessLightBrush}"
+                    CornerRadius="4"
+                    Padding="12,8"
+                    Margin="0,0,0,16">
+                <TextBlock Text="{Binding StatusMessage}"
+                           Foreground="{StaticResource SuccessBrush}"
+                           Style="{StaticResource BodyStyle}" />
+            </Border>
+
+            <!-- ============ STARTUP ============ -->
+            <Border Style="{StaticResource CardStyle}" Margin="0,0,0,12">
+                <StackPanel>
+                    <TextBlock Text="Startup"
+                               Style="{StaticResource SubtitleStyle}"
+                               Margin="0,0,0,12" />
+
+                    <CheckBox Content="Start with Windows"
+                              IsChecked="{Binding StartWithWindows}"
+                              Style="{StaticResource ModernCheckBoxStyle}"
+                              Margin="0,0,0,8" />
+
+                    <CheckBox Content="Start minimized to system tray"
+                              IsChecked="{Binding StartMinimized}"
+                              Style="{StaticResource ModernCheckBoxStyle}"
+                              Margin="0,0,0,8" />
+
+                    <CheckBox Content="Auto-connect last used profile"
+                              IsChecked="{Binding AutoConnectLastProfile}"
+                              Style="{StaticResource ModernCheckBoxStyle}" />
+                </StackPanel>
+            </Border>
+
+            <!-- ============ APPEARANCE ============ -->
+            <Border Style="{StaticResource CardStyle}" Margin="0,0,0,12">
+                <StackPanel>
+                    <TextBlock Text="Appearance"
+                               Style="{StaticResource SubtitleStyle}"
+                               Margin="0,0,0,12" />
+
+                    <TextBlock Text="Theme" Style="{StaticResource CaptionStyle}"
+                               Margin="0,0,0,4" />
+                    <ComboBox ItemsSource="{Binding ThemeModes}"
+                              SelectedItem="{Binding Theme}"
+                              Style="{StaticResource ModernComboBoxStyle}"
+                              Width="200"
+                              HorizontalAlignment="Left"
+                              Margin="0,0,0,12" />
+
+                    <CheckBox Content="Minimize to system tray"
+                              IsChecked="{Binding MinimizeToTray}"
+                              Style="{StaticResource ModernCheckBoxStyle}"
+                              Margin="0,0,0,8" />
+
+                    <CheckBox Content="Close to system tray (instead of exiting)"
+                              IsChecked="{Binding CloseToTray}"
+                              Style="{StaticResource ModernCheckBoxStyle}"
+                              Margin="0,0,0,8" />
+
+                    <CheckBox Content="Show desktop notifications"
+                              IsChecked="{Binding ShowNotifications}"
+                              Style="{StaticResource ModernCheckBoxStyle}"
+                              Margin="0,0,0,8" />
+
+                    <CheckBox Content="Show connection duration in status bar"
+                              IsChecked="{Binding ShowConnectionDuration}"
+                              Style="{StaticResource ModernCheckBoxStyle}" />
+                </StackPanel>
+            </Border>
+
+            <!-- ============ LOGGING ============ -->
+            <Border Style="{StaticResource CardStyle}" Margin="0,0,0,12">
+                <StackPanel>
+                    <TextBlock Text="Logging"
+                               Style="{StaticResource SubtitleStyle}"
+                               Margin="0,0,0,12" />
+
+                    <TextBlock Text="Log Verbosity" Style="{StaticResource CaptionStyle}"
+                               Margin="0,0,0,4" />
+                    <ComboBox ItemsSource="{Binding LogLevels}"
+                              SelectedItem="{Binding LogVerbosity}"
+                              Style="{StaticResource ModernComboBoxStyle}"
+                              Width="200"
+                              HorizontalAlignment="Left"
+                              Margin="0,0,0,12" />
+
+                    <TextBlock Text="Log Retention (days)" Style="{StaticResource CaptionStyle}"
+                               Margin="0,0,0,4" />
+                    <TextBox Text="{Binding MaxLogRetentionDays}"
+                             Style="{StaticResource ModernTextBoxStyle}"
+                             Width="120"
+                             HorizontalAlignment="Left" />
+                </StackPanel>
+            </Border>
+
+            <!-- ============ CLI PATH ============ -->
+            <Border Style="{StaticResource CardStyle}" Margin="0,0,0,12">
+                <StackPanel>
+                    <TextBlock Text="OpenFortiVPN CLI"
+                               Style="{StaticResource SubtitleStyle}"
+                               Margin="0,0,0,12" />
+
+                    <TextBlock Text="Path to openfortivpn.exe" Style="{StaticResource CaptionStyle}"
+                               Margin="0,0,0,4" />
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBox Grid.Column="0"
+                                 Text="{Binding OpenFortiVpnPath, UpdateSourceTrigger=PropertyChanged}"
+                                 Style="{StaticResource ModernTextBoxStyle}"
+                                 FontFamily="{StaticResource MonoFont}"
+                                 Margin="0,0,8,0" />
+                        <Button Grid.Column="1"
+                                Content="Browse..."
+                                Style="{StaticResource SecondaryButtonStyle}"
+                                Command="{Binding BrowseForCliCommand}" />
+                    </Grid>
+                </StackPanel>
+            </Border>
+
+            <!-- ============ ACTION BUTTONS ============ -->
+            <StackPanel Orientation="Horizontal" Margin="0,8,0,32">
+                <Button Content="Save Settings"
+                        Style="{StaticResource PrimaryButtonStyle}"
+                        Command="{Binding SaveCommand}"
+                        Margin="0,0,8,0" />
+
+                <Button Content="Reset to Defaults"
+                        Style="{StaticResource SecondaryButtonStyle}"
+                        Command="{Binding ResetDefaultsCommand}" />
+            </StackPanel>
+
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>
