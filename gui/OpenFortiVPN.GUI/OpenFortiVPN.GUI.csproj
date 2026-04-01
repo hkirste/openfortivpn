@@ -28,6 +28,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <InternalsVisibleTo Include="OpenFortiVPN.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Resource Include="Assets\**\*" />
   </ItemGroup>
 

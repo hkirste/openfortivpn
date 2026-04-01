@@ -337,7 +337,7 @@ public sealed class VpnService : IVpnService, IDisposable
     /// <summary>
     /// Map the error category string from a VpnErrorEvent to the ErrorCategory enum.
     /// </summary>
-    private static Models.ErrorCategory MapErrorCategory(string category) => category switch
+    internal static Models.ErrorCategory MapErrorCategory(string category) => category switch
     {
         "network_unreachable" => Models.ErrorCategory.NetworkUnreachable,
         "dns_resolution_failed" => Models.ErrorCategory.DnsResolutionFailed,
@@ -348,6 +348,24 @@ public sealed class VpnService : IVpnService, IDisposable
         "configuration_error" => Models.ErrorCategory.ConfigurationError,
         "timeout" => Models.ErrorCategory.Timeout,
         _ => Models.ErrorCategory.Unknown,
+    };
+
+    internal static (Models.ErrorCategory Category, string Message)? MapExitCode(
+        int exitCode) => exitCode switch
+    {
+        0 => null,
+        10 => (Models.ErrorCategory.DnsResolutionFailed,
+            "Cannot find the VPN server. Check the server address or your internet connection."),
+        11 => (Models.ErrorCategory.NetworkUnreachable,
+            "Cannot reach the VPN server. Check your internet connection and firewall settings."),
+        12 or 13 => (Models.ErrorCategory.CertificateError,
+            "Server certificate verification failed. Add the certificate digest to your profile's trusted certificates."),
+        20 => (Models.ErrorCategory.AuthenticationFailed,
+            "Login failed. Please verify your username and password."),
+        50 => (Models.ErrorCategory.PermissionDenied,
+            "Administrator privileges are required to create the VPN tunnel."),
+        _ => (Models.ErrorCategory.ProcessCrashed,
+            $"VPN process exited unexpectedly (code {exitCode})."),
     };
 
     private void TransitionTo(ConnectionState newState)
@@ -373,38 +391,14 @@ public sealed class VpnService : IVpnService, IDisposable
             return;
         }
 
-        // Map exit codes to precise error categories
-        switch (exitCode)
+        var mapped = MapExitCode(exitCode);
+        if (mapped is null)
         {
-            case 0:
-                TransitionTo(ConnectionState.Disconnected);
-                return;
-            case 10:
-                SetExitError(Models.ErrorCategory.DnsResolutionFailed,
-                    "Cannot find the VPN server. Check the server address or your internet connection.");
-                break;
-            case 11:
-                SetExitError(Models.ErrorCategory.NetworkUnreachable,
-                    "Cannot reach the VPN server. Check your internet connection and firewall settings.");
-                break;
-            case 12:
-            case 13:
-                SetExitError(Models.ErrorCategory.CertificateError,
-                    "Server certificate verification failed. Add the certificate digest to your profile's trusted certificates.");
-                break;
-            case 20:
-                SetExitError(Models.ErrorCategory.AuthenticationFailed,
-                    "Login failed. Please verify your username and password.");
-                break;
-            case 50:
-                SetExitError(Models.ErrorCategory.PermissionDenied,
-                    "Administrator privileges are required to create the VPN tunnel.");
-                break;
-            default:
-                SetExitError(Models.ErrorCategory.ProcessCrashed,
-                    $"VPN process exited unexpectedly (code {exitCode}).");
-                break;
+            TransitionTo(ConnectionState.Disconnected);
+            return;
         }
+
+        SetExitError(mapped.Value.Category, mapped.Value.Message);
 
         // If we collected error lines from stdout and the error message is
         // still the generic exit-code-based one, replace with the real output.
@@ -431,14 +425,16 @@ public sealed class VpnService : IVpnService, IDisposable
 
     public void Dispose()
     {
-        _cts?.Cancel();
-        _cts?.Dispose();
+        try { _cts?.Cancel(); } catch { }
+        try { _cts?.Dispose(); } catch { }
 
-        if (_process is { HasExited: false })
+        try
         {
-            try { _process.Kill(entireProcessTree: true); } catch { }
+            if (_process is not null && !_process.HasExited)
+                _process.Kill(entireProcessTree: true);
         }
+        catch { }
 
-        _process?.Dispose();
+        try { _process?.Dispose(); } catch { }
     }
 }
