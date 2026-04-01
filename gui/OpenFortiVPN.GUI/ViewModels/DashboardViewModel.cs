@@ -117,6 +117,14 @@ public partial class DashboardViewModel : ObservableObject
             });
         };
 
+        // Refresh profiles when we become the active view (e.g., after
+        // returning from the profile editor where a new profile was saved)
+        _navigation.Navigated += (_, vm) =>
+        {
+            if (ReferenceEquals(vm, this))
+                _dispatcher.Invoke(LoadProfiles);
+        };
+
         LoadProfiles();
     }
 
