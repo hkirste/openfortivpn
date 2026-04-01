@@ -1,5 +1,4 @@
 using System.Diagnostics;
-using System.Text.RegularExpressions;
 using Microsoft.Extensions.Logging;
 using OpenFortiVPN.GUI.Models;
 
@@ -7,12 +6,8 @@ namespace OpenFortiVPN.GUI.Services;
 
 /// <summary>
 /// Manages the openfortivpn.exe child process.
-///
-/// Two modes of operation:
-/// 1. Structured mode: CLI supports --json-events → stderr has JSON events
-/// 2. Legacy mode: CLI does not support --json-events → parse stdout log text
-///
-/// Legacy mode is used when the bundled CLI predates the --json-events flag.
+/// Structured JSON events on stderr drive the state machine.
+/// stdout is forwarded to the log viewer.
 /// Passwords are delivered exclusively via stdin pipe.
 /// </summary>
 public sealed class VpnService : IVpnService, IDisposable
@@ -22,7 +17,6 @@ public sealed class VpnService : IVpnService, IDisposable
     private Process? _process;
     private CancellationTokenSource? _cts;
     private readonly object _lock = new();
-    private bool _jsonEventsSupported = true;
 
     public ConnectionState State { get; private set; } = ConnectionState.Disconnected;
     public ConnectionInfo CurrentConnection { get; } = new();
@@ -34,14 +28,6 @@ public sealed class VpnService : IVpnService, IDisposable
     public event EventHandler<string>? SamlLoginRequired;
 
     private readonly List<string> _errorLines = new();
-
-    // Regex for legacy stdout parsing
-    private static readonly Regex GatewayIpRx =
-        new(@"Gateway IP:\s+([\d.]+)", RegexOptions.Compiled);
-    private static readonly Regex AssignedIpRx =
-        new(@"Assigned IP:\s+([\d.]+)", RegexOptions.Compiled);
-    private static readonly Regex CertDigestRx =
-        new(@"Certificate digest:\s+([a-f0-9]+)", RegexOptions.Compiled);
 
     public VpnService(ISettingsService settings, ILogger<VpnService> logger)
     {
@@ -64,14 +50,12 @@ public sealed class VpnService : IVpnService, IDisposable
 
         var args = profile.BuildArguments();
 
-        // Insert flags before the positional host:port (always last)
+        // Insert --json-events and verbosity flags before positional host:port
         int insertPos = args.Count > 0 && !args[^1].StartsWith('-')
             ? args.Count - 1
             : args.Count;
 
-        // Only add --json-events if the CLI supports it
-        if (_jsonEventsSupported)
-            args.Insert(insertPos, "--json-events");
+        args.Insert(insertPos, "--json-events");
 
         foreach (var flag in appSettings.LogVerbosity.ToCliFlags())
         {
@@ -186,9 +170,30 @@ public sealed class VpnService : IVpnService, IDisposable
                     continue;
 
                 if (source == "stderr")
-                    HandleStderrLine(line);
+                {
+                    var evt = EventStreamParser.Parse(line);
+                    if (evt is not null)
+                        HandleEvent(evt);
+                    else
+                        _logger.LogDebug("stderr: {Line}", line);
+                }
                 else
-                    HandleStdoutLine(line);
+                {
+                    var severity = ClassifyStdoutSeverity(line);
+                    var entry = new LogEntry
+                    {
+                        Timestamp = DateTime.Now,
+                        Severity = severity,
+                        Message = line.TrimStart(),
+                        RawLine = line,
+                        Source = source
+                    };
+
+                    if (severity == LogSeverity.Error)
+                        _errorLines.Add(line.TrimStart());
+
+                    LogReceived?.Invoke(this, entry);
+                }
             }
         }
         catch (OperationCanceledException) { }
@@ -196,131 +201,6 @@ public sealed class VpnService : IVpnService, IDisposable
         {
             _logger.LogDebug(ex, "Stream {Source} read ended", source);
         }
-    }
-
-    /// <summary>
-    /// Handle a line from stderr. Try JSON event parsing first;
-    /// if it fails, check if the CLI rejected --json-events and
-    /// retry without it.
-    /// </summary>
-    private void HandleStderrLine(string line)
-    {
-        // Try structured JSON event
-        var evt = EventStreamParser.Parse(line);
-        if (evt is not null)
-        {
-            HandleEvent(evt);
-            return;
-        }
-
-        // Detect --json-events rejection → switch to legacy mode
-        if (line.Contains("unrecognized option") &&
-            line.Contains("json-events"))
-        {
-            _logger.LogWarning(
-                "CLI does not support --json-events, using legacy mode");
-            _jsonEventsSupported = false;
-            return;
-        }
-
-        _logger.LogDebug("stderr: {Line}", line);
-    }
-
-    /// <summary>
-    /// Handle a line from stdout. Always emit as a log entry.
-    /// In legacy mode (no --json-events), also infer state transitions
-    /// from the log prefix format (INFO:/ERROR:/WARN:/DEBUG:).
-    /// </summary>
-    private void HandleStdoutLine(string line)
-    {
-        var severity = ClassifyStdoutSeverity(line);
-        var msg = StripPrefix(line);
-
-        var entry = new LogEntry
-        {
-            Timestamp = DateTime.Now,
-            Severity = severity,
-            Message = msg,
-            RawLine = line,
-            Source = "stdout"
-        };
-
-        if (severity == LogSeverity.Error)
-            _errorLines.Add(msg);
-
-        LogReceived?.Invoke(this, entry);
-
-        // Legacy mode: infer state from log messages
-        if (!_jsonEventsSupported)
-            InferStateFromLog(msg, severity);
-    }
-
-    /// <summary>
-    /// Legacy fallback: infer connection state from stdout log text.
-    /// Uses the structured prefix format (not English content) where
-    /// possible, and known fixed strings from the CLI source code.
-    /// </summary>
-    private void InferStateFromLog(string msg, LogSeverity severity)
-    {
-        // Gateway IP resolved
-        var gwMatch = GatewayIpRx.Match(msg);
-        if (gwMatch.Success)
-        {
-            CurrentConnection.GatewayIp = gwMatch.Groups[1].Value;
-            return;
-        }
-
-        // Assigned IP (tunnel is up)
-        var ipMatch = AssignedIpRx.Match(msg);
-        if (ipMatch.Success)
-        {
-            CurrentConnection.AssignedIp = ipMatch.Groups[1].Value;
-            CurrentConnection.ConnectedSince = DateTime.Now;
-            TransitionTo(ConnectionState.Connected);
-            return;
-        }
-
-        // Certificate digest (cert error)
-        var certMatch = CertDigestRx.Match(msg);
-        if (certMatch.Success)
-        {
-            CurrentConnection.ErrorMessage =
-                $"Server certificate not trusted.\n\n" +
-                $"Certificate digest:\n{certMatch.Groups[1].Value}\n\n" +
-                "Add this digest to your profile under " +
-                "TLS / Security > Trusted Certificate Digests.";
-            CurrentConnection.ErrorCategory =
-                Models.ErrorCategory.CertificateError;
-            return;
-        }
-
-        // State transitions from known log strings
-        if (msg.StartsWith("Connected to gateway"))
-            TransitionTo(ConnectionState.Authenticating);
-        else if (msg.StartsWith("Authenticated"))
-            TransitionTo(ConnectionState.NegotiatingTunnel);
-        else if (msg.StartsWith("Tunnel interface is UP"))
-        {
-            CurrentConnection.ConnectedSince = DateTime.Now;
-            TransitionTo(ConnectionState.Connected);
-        }
-        else if (msg.StartsWith("Tunnel interface is DOWN"))
-            TransitionTo(ConnectionState.Reconnecting);
-    }
-
-    private static string StripPrefix(string line)
-    {
-        // Strip "ERROR:  ", "WARN:   ", "INFO:   ", "DEBUG:  " prefixes
-        if (line.Length > 8 && line[4..8].TrimStart() == "" &&
-            (line.StartsWith("ERRO") || line.StartsWith("WARN") ||
-             line.StartsWith("INFO") || line.StartsWith("DEBU")))
-        {
-            int i = line.IndexOf(':');
-            if (i > 0 && i < 8)
-                return line[(i + 1)..].TrimStart();
-        }
-
-        return line.TrimStart();
     }
 
     private static LogSeverity ClassifyStdoutSeverity(string line)
@@ -333,8 +213,6 @@ public sealed class VpnService : IVpnService, IDisposable
             return LogSeverity.Debug;
         return LogSeverity.Info;
     }
-
-    // --- Structured event handlers (--json-events mode) ---
 
     private void HandleEvent(VpnEvent evt)
     {
@@ -501,7 +379,6 @@ public sealed class VpnService : IVpnService, IDisposable
 
         SetExitError(mapped.Value.Category, mapped.Value.Message);
 
-        // Use collected stdout ERROR lines if more specific
         if (_errorLines.Count > 0 &&
             CurrentConnection.ErrorMessage is not null &&
             CurrentConnection.ErrorMessage.Contains("(code "))
