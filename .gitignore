@@ -19,3 +19,6 @@ config.sub
 config.guess
 openfortivpn@.service
 /build/
+gui/**/bin/
+gui/**/obj/
+gui-publish/

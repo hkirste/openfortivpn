@@ -1,0 +1,7 @@
+host = vpn.example.com
+port = 10443
+username = john.doe
+realm = CORP
+trusted-cert = aabbccdd11223344
+set-routes = 1
+set-dns = 1
