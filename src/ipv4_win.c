@@ -270,7 +270,7 @@ int ipv4_restore_routes(struct tunnel *tunnel)
 
 			/* Delete 128.0.0.0/1 route */
 			row.DestinationPrefix.Prefix.Ipv4.sin_addr.s_addr =
-				htonl(0x80000000);
+			        htonl(0x80000000);
 			del_route(&row);
 		} else {
 			/* Delete default route through VPN */
@@ -290,14 +290,14 @@ int ipv4_restore_routes(struct tunnel *tunnel)
 		InitializeIpForwardEntry(&row);
 		row.DestinationPrefix.Prefix.Ipv4.sin_family = AF_INET;
 		row.DestinationPrefix.Prefix.Ipv4.sin_addr =
-			tunnel->config->gateway_ip;
+		        tunnel->config->gateway_ip;
 		row.DestinationPrefix.PrefixLength = 32;
 		if (saved_default_route.valid) {
 			row.InterfaceLuid =
-				saved_default_route.row.InterfaceLuid;
+			        saved_default_route.row.InterfaceLuid;
 			row.NextHop.Ipv4.sin_family = AF_INET;
 			row.NextHop.Ipv4.sin_addr =
-				saved_default_route.row.NextHop.Ipv4.sin_addr;
+			        saved_default_route.row.NextHop.Ipv4.sin_addr;
 		}
 		del_route(&row);
 		tunnel->ipv4.route_to_vpn_is_added = 0;
@@ -332,8 +332,7 @@ int ipv4_add_nameservers_to_resolv_conf(struct tunnel *tunnel)
 	 */
 	if (dns1_str[0]) {
 		snprintf(cmd, sizeof(cmd),
-		         "netsh interface ipv4 set dnsservers "
-		         "name=\"openfortivpn\" static %s primary validate=no",
+		         "netsh interface ipv4 set dnsservers name=\"openfortivpn\" static %s primary validate=no",
 		         dns1_str);
 		log_debug("Running: %s\n", cmd);
 		system(cmd);
@@ -341,8 +340,7 @@ int ipv4_add_nameservers_to_resolv_conf(struct tunnel *tunnel)
 
 	if (dns2_str[0]) {
 		snprintf(cmd, sizeof(cmd),
-		         "netsh interface ipv4 add dnsservers "
-		         "name=\"openfortivpn\" %s index=2 validate=no",
+		         "netsh interface ipv4 add dnsservers name=\"openfortivpn\" %s index=2 validate=no",
 		         dns2_str);
 		log_debug("Running: %s\n", cmd);
 		system(cmd);
@@ -351,9 +349,7 @@ int ipv4_add_nameservers_to_resolv_conf(struct tunnel *tunnel)
 	/* Set DNS search suffix if configured */
 	if (tunnel->ipv4.dns_suffix) {
 		snprintf(cmd, sizeof(cmd),
-		         "netsh interface ipv4 set dnsservers "
-		         "name=\"openfortivpn\" register=both "
-		         "suffix=\"%s\" validate=no",
+		         "netsh interface ipv4 set dnsservers name=\"openfortivpn\" register=both suffix=\"%s\" validate=no",
 		         tunnel->ipv4.dns_suffix);
 		log_debug("Running: %s\n", cmd);
 		/* DNS suffix is set via registry for reliability */
@@ -361,8 +357,7 @@ int ipv4_add_nameservers_to_resolv_conf(struct tunnel *tunnel)
 
 	/* Lower the interface metric so VPN DNS is preferred */
 	snprintf(cmd, sizeof(cmd),
-	         "netsh interface ipv4 set interface "
-	         "\"openfortivpn\" metric=1");
+	         "netsh interface ipv4 set interface \"openfortivpn\" metric=1");
 	log_debug("Running: %s\n", cmd);
 	system(cmd);
 
@@ -381,8 +376,7 @@ int ipv4_del_nameservers_from_resolv_conf(struct tunnel *tunnel)
 	 * for clean shutdown.
 	 */
 	snprintf(cmd, sizeof(cmd),
-	         "netsh interface ipv4 set dnsservers "
-	         "name=\"openfortivpn\" dhcp");
+	         "netsh interface ipv4 set dnsservers name=\"openfortivpn\" dhcp");
 	log_debug("Running: %s\n", cmd);
 	system(cmd);
 

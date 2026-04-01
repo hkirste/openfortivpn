@@ -47,8 +47,8 @@
 #define ADAPTER_NAME L"openfortivpn"
 #define TUNNEL_TYPE  L"openfortivpn"
 
-/* Forward declaration */
-extern void ipv4_win_set_tun_luid(NET_LUID *luid);
+/* Forward declaration - defined in ipv4_win.c */
+void ipv4_win_set_tun_luid(NET_LUID *luid);
 
 static struct wintun_api wt_api;
 static int wt_api_loaded;
@@ -64,9 +64,7 @@ static int wintun_create(struct tunnel *tunnel)
 
 	if (!wt_api_loaded) {
 		if (wintun_load(&wt_api) != 0) {
-			log_error("Failed to load wintun.dll. "
-			          "Please ensure wintun.dll is in the "
-			          "application directory or system PATH.\n");
+			log_error("Failed to load wintun.dll. Please ensure wintun.dll is in the application directory or system PATH.\n");
 			return 1;
 		}
 		wt_api_loaded = 1;
@@ -123,8 +121,8 @@ static int wintun_configure_ip(struct tunnel *tunnel)
 	char ip_str[INET_ADDRSTRLEN];
 
 	wt_api.GetAdapterLUID(
-		wt_api.CreateAdapter ? (WINTUN_ADAPTER_HANDLE)NULL : NULL,
-		&luid);
+	        wt_api.CreateAdapter ? (WINTUN_ADAPTER_HANDLE)NULL : NULL,
+	        &luid);
 
 	/* We already have the LUID from creation */
 	/* Re-fetch it from the adapter stored in tunnel */
@@ -135,8 +133,7 @@ static int wintun_configure_ip(struct tunnel *tunnel)
 	char cmd[256];
 
 	snprintf(cmd, sizeof(cmd),
-	         "netsh interface ipv4 set address "
-	         "name=\"openfortivpn\" static %s 255.255.255.255",
+	         "netsh interface ipv4 set address name=\"openfortivpn\" static %s 255.255.255.255",
 	         ip_str);
 	log_debug("Running: %s\n", cmd);
 	ret = system(cmd);
@@ -145,8 +142,7 @@ static int wintun_configure_ip(struct tunnel *tunnel)
 
 	/* Set MTU to match PPP MRU */
 	snprintf(cmd, sizeof(cmd),
-	         "netsh interface ipv4 set subinterface "
-	         "\"openfortivpn\" mtu=1354 store=active");
+	         "netsh interface ipv4 set subinterface \"openfortivpn\" mtu=1354 store=active");
 	log_debug("Running: %s\n", cmd);
 	system(cmd);
 
@@ -406,7 +402,7 @@ static int get_gateway_host_ip(struct tunnel *tunnel)
 	}
 
 	tunnel->config->gateway_ip =
-		((struct sockaddr_in *)result->ai_addr)->sin_addr;
+	        ((struct sockaddr_in *)result->ai_addr)->sin_addr;
 	freeaddrinfo(result);
 
 	{
