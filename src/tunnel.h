@@ -30,7 +30,7 @@
 #define OPENFORTIVPN_TUNNEL_H
 
 #include "config.h"
-#include "io.h"
+#include "openfortivpn_io.h"
 #include "ipv4.h"
 
 #include <openssl/ssl.h>

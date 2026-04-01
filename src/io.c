@@ -26,7 +26,7 @@
  *  all source files in the program, then also delete it here.
  */
 
-#include "io.h"
+#include "openfortivpn_io.h"
 #include "hdlc.h"
 #include "ssl.h"
 #include "tunnel.h"

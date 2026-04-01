@@ -22,8 +22,10 @@
 #include "userinput.h"
 #include "log.h"
 
+#ifndef _WIN32
 #include <unistd.h>
 #include <arpa/inet.h>
+#endif
 
 #include <assert.h>
 #include <ctype.h>

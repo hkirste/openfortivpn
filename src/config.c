@@ -35,6 +35,49 @@
 #include <ctype.h>
 #include <limits.h>
 #include <stdio.h>
+
+#ifdef _WIN32
+/*
+ * getline() is POSIX but not available on Windows/MinGW.
+ * Provide a minimal implementation.
+ */
+static ssize_t getline(char **lineptr, size_t *n, FILE *stream)
+{
+	size_t pos = 0;
+	int c;
+
+	if (!lineptr || !n || !stream)
+		return -1;
+
+	if (!*lineptr) {
+		*n = 128;
+		*lineptr = malloc(*n);
+		if (!*lineptr)
+			return -1;
+	}
+
+	while ((c = fgetc(stream)) != EOF) {
+		if (pos + 1 >= *n) {
+			size_t new_size = *n * 2;
+			char *new_ptr = realloc(*lineptr, new_size);
+
+			if (!new_ptr)
+				return -1;
+			*lineptr = new_ptr;
+			*n = new_size;
+		}
+		(*lineptr)[pos++] = (char)c;
+		if (c == '\n')
+			break;
+	}
+
+	if (pos == 0)
+		return -1;
+
+	(*lineptr)[pos] = '\0';
+	return (ssize_t)pos;
+}
+#endif
 #include <stdlib.h>
 #include <string.h>
 
