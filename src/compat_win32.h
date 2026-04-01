@@ -36,7 +36,15 @@ typedef int ssize_t;
 #endif
 #endif
 
+/*
+ * pid_t may already be defined via pthread.h -> sys/types.h on MinGW-w64.
+ * Include sys/types.h to get it if available, otherwise define it.
+ */
+#ifdef __MINGW32__
+#include <sys/types.h>
+#else
 typedef int pid_t;
+#endif
 typedef unsigned int uid_t;
 
 /* File descriptor compatibility */
