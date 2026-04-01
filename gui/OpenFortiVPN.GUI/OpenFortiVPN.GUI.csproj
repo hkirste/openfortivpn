@@ -14,6 +14,7 @@
     <Product>OpenFortiVPN GUI</Product>
     <Description>A modern GUI for OpenFortiVPN - Fortinet SSL VPN Client</Description>
     <Copyright>Copyright (c) 2024-2026 OpenFortiVPN Contributors. Licensed under GPLv3.</Copyright>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
   </PropertyGroup>
 
   <ItemGroup>
