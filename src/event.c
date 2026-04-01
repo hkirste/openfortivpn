@@ -45,7 +45,7 @@ void event_emit(const char *type, const char *json_fields_fmt, ...)
 	pthread_mutex_lock(&event_mutex);
 
 	fprintf(stderr, "{\"event\":\"%s\",\"ts\":%lld,\"seq\":%lld",
-		type, (long long)time(NULL), (long long)seq_counter++);
+	        type, (long long)time(NULL), (long long)seq_counter++);
 
 	if (json_fields_fmt && json_fields_fmt[0] != '\0') {
 		va_start(ap, json_fields_fmt);

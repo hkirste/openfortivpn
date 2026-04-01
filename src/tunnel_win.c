@@ -353,9 +353,9 @@ int ssl_connect(struct tunnel *tunnel)
 					log_error("Certificate digest: %s\n",
 					          digest_str);
 					event_emit("cert_error",
-					          "\"digest\":\"%s\","
-					          "\"reason\":\"verification_failed\"",
-					          digest_str);
+					           "\"digest\":\"%s\","
+					           "\"reason\":\"verification_failed\"",
+					           digest_str);
 					return 1;
 				}
 				log_debug("Trusted certificate matched.\n");
@@ -405,10 +405,10 @@ static int get_gateway_host_ip(struct tunnel *tunnel)
 		log_error("Could not resolve host: %s\n",
 		          tunnel->config->gateway_host);
 		event_emit("error",
-		          "\"code\":%d,"
-		          "\"category\":\"dns\","
-		          "\"message\":\"Could not resolve host\"",
-		          OFV_EXIT_DNS_FAILED);
+		           "\"code\":%d,"
+		           "\"category\":\"dns\","
+		           "\"message\":\"Could not resolve host\"",
+		           OFV_EXIT_DNS_FAILED);
 		return 1;
 	}
 
@@ -453,14 +453,14 @@ static int on_ppp_if_up(struct tunnel *tunnel)
 			char dns2_str[INET_ADDRSTRLEN] = "";
 
 			inet_ntop(AF_INET, &tunnel->ipv4.ns1_addr,
-				  dns1_str, sizeof(dns1_str));
+			          dns1_str, sizeof(dns1_str));
 			inet_ntop(AF_INET, &tunnel->ipv4.ns2_addr,
-				  dns2_str, sizeof(dns2_str));
+			          dns2_str, sizeof(dns2_str));
 			event_emit("tunnel_up",
-				   "\"local_ip\":\"%s\","
-				   "\"dns1\":\"%s\","
-				   "\"dns2\":\"%s\"",
-				   ip_str, dns1_str, dns2_str);
+			           "\"local_ip\":\"%s\","
+			           "\"dns1\":\"%s\","
+			           "\"dns2\":\"%s\"",
+			           ip_str, dns1_str, dns2_str);
 		}
 	}
 
