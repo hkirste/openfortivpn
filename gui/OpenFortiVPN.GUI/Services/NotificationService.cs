@@ -51,7 +51,7 @@ public sealed class NotificationService : INotificationService
         ShowInfo("VPN Reconnecting", $"Reconnecting to {profileName} (attempt {attempt})...");
     }
 
-    private enum NotificationType { Info, Warning, Error }
+    public enum NotificationType { Info, Warning, Error }
 
     private void ShowTrayNotification(string title, string message, NotificationType type)
     {
