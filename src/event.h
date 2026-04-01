@@ -26,8 +26,10 @@ void event_init(int enabled);
 /* Emit a JSON event line to stderr. fmt contains key:value pairs in JSON. */
 void event_emit(const char *type, const char *json_fields_fmt, ...);
 
-/* Helper: escape a string for JSON (handles quotes, backslashes, control chars).
- * Writes to buf, returns buf. Truncates if output exceeds buf_size. */
+/*
+ * Helper: escape a string for JSON (handles quotes, backslashes, control chars).
+ * Writes to buf, returns buf. Truncates if output exceeds buf_size.
+ */
 char *json_escape(char *buf, size_t buf_size, const char *input);
 
 #endif /* OPENFORTIVPN_EVENT_H */
