@@ -297,11 +297,11 @@ static void test_ipcp_nak_assigns_ip(void)
 		uint8_t expected_dns2[] = {0x08, 0x08, 0x04, 0x04};
 
 		assert_true(memcmp(&ctx.local_ip, expected_ip, 4) == 0,
-		       "local_ip should be 10.0.1.100");
+		            "local_ip should be 10.0.1.100");
 		assert_true(memcmp(&ctx.dns_primary, expected_dns1, 4) == 0,
-		       "DNS1 should be 8.8.8.8");
+		            "DNS1 should be 8.8.8.8");
 		assert_true(memcmp(&ctx.dns_secondary, expected_dns2, 4) == 0,
-		       "DNS2 should be 8.8.4.4");
+		            "DNS2 should be 8.8.4.4");
 	}
 
 	free(response);
