@@ -49,8 +49,6 @@
 #define ADAPTER_NAME L"openfortivpn"
 #define TUNNEL_TYPE  L"openfortivpn"
 
-/* Forward declaration - defined in ipv4_win.c */
-void ipv4_win_set_tun_luid(NET_LUID *luid);
 
 static struct wintun_api wt_api;
 static int wt_api_loaded;

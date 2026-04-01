@@ -20,6 +20,7 @@
 
 #ifdef _WIN32
 #include "compat_win32.h"
+void ipv4_win_set_tun_luid(NET_LUID *luid);
 #else
 #include <sys/types.h>
 #include <sys/socket.h>

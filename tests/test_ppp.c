@@ -18,6 +18,7 @@ static int tests_passed;
 #define TEST(name) \
 	do { \
 		tests_run++; \
+		test_failed = 0; \
 		printf("  %-50s", name); \
 	} while (0)
 
@@ -27,18 +28,19 @@ static int tests_passed;
 		printf("[PASS]\n"); \
 	} while (0)
 
-#define FAIL(msg) \
-	do { \
-		printf("[FAIL] %s\n", msg); \
-	} while (0)
+static int test_failed;
 
-#define ASSERT(cond, msg) \
-	do { \
-		if (!(cond)) { \
-			FAIL(msg); \
-			return; \
-		} \
-	} while (0)
+static void fail_test(const char *msg)
+{
+	printf("[FAIL] %s\n", msg);
+	test_failed = 1;
+}
+
+static void assert_true(int cond, const char *msg)
+{
+	if (!cond)
+		fail_test(msg);
+}
 
 /*
  * Test: ppp_init sets correct defaults.
@@ -49,11 +51,21 @@ static void test_ppp_init(void)
 
 	TEST("ppp_init sets defaults");
 	ppp_init(&ctx);
-	ASSERT(ctx.state == PPP_STATE_INITIAL, "state should be INITIAL");
-	ASSERT(ctx.mru == 1354, "MRU should be 1354");
-	ASSERT(ctx.asyncmap == 0, "ACCM should be 0");
-	ASSERT(ctx.local_ip == 0, "local_ip should be 0");
-	ASSERT(ctx.negotiation_complete == 0, "negotiation should not be complete");
+	assert_true(ctx.state == PPP_STATE_INITIAL, "state should be INITIAL");
+	if (test_failed)
+		return;
+	assert_true(ctx.mru == 1354, "MRU should be 1354");
+	if (test_failed)
+		return;
+	assert_true(ctx.asyncmap == 0, "ACCM should be 0");
+	if (test_failed)
+		return;
+	assert_true(ctx.local_ip == 0, "local_ip should be 0");
+	if (test_failed)
+		return;
+	assert_true(ctx.negotiation_complete == 0, "negotiation should not be complete");
+	if (test_failed)
+		return;
 	PASS();
 }
 
@@ -70,16 +82,28 @@ static void test_start_negotiation(void)
 	TEST("ppp_start_negotiation sends LCP Config-Request");
 	ppp_init(&ctx);
 	ret = ppp_start_negotiation(&ctx, &out, &out_len);
-	ASSERT(ret == 0, "should return 0");
-	ASSERT(out != NULL, "output should not be NULL");
-	ASSERT(out_len >= 6, "output should be at least 6 bytes");
+	assert_true(ret == 0, "should return 0");
+	if (test_failed)
+		return;
+	assert_true(out != NULL, "output should not be NULL");
+	if (test_failed)
+		return;
+	assert_true(out_len >= 6, "output should be at least 6 bytes");
+	if (test_failed)
+		return;
 
 	/* Check protocol = LCP (0xc021) */
-	ASSERT(out[0] == 0xc0 && out[1] == 0x21, "protocol should be LCP");
+	assert_true(out[0] == 0xc0 && out[1] == 0x21, "protocol should be LCP");
+	if (test_failed)
+		return;
 	/* Check code = Config-Request (1) */
-	ASSERT(out[2] == PPP_CODE_CONF_REQ, "code should be Config-Request");
+	assert_true(out[2] == PPP_CODE_CONF_REQ, "code should be Config-Request");
+	if (test_failed)
+		return;
 	/* Check state transition */
-	ASSERT(ctx.state == PPP_STATE_LCP_SENT, "state should be LCP_SENT");
+	assert_true(ctx.state == PPP_STATE_LCP_SENT, "state should be LCP_SENT");
+	if (test_failed)
+		return;
 
 	free(out);
 	PASS();
@@ -113,12 +137,24 @@ static void test_lcp_config_req_ack(void)
 
 	ret = ppp_process_incoming(&ctx, lcp_conf_req, sizeof(lcp_conf_req),
 	                           &response, &resp_len, &ip_payload, &ip_len);
-	ASSERT(ret == PPP_RET_OK, "should return OK");
-	ASSERT(response != NULL, "should generate response");
-	ASSERT(response[0] == 0xc0 && response[1] == 0x21, "response should be LCP");
-	ASSERT(response[2] == PPP_CODE_CONF_ACK, "response should be Config-Ack");
-	ASSERT(response[3] == 0x01, "identifier should match request");
-	ASSERT(ip_payload == NULL, "no IP payload expected");
+	assert_true(ret == PPP_RET_OK, "should return OK");
+	if (test_failed)
+		return;
+	assert_true(response != NULL, "should generate response");
+	if (test_failed)
+		return;
+	assert_true(response[0] == 0xc0 && response[1] == 0x21, "response should be LCP");
+	if (test_failed)
+		return;
+	assert_true(response[2] == PPP_CODE_CONF_ACK, "response should be Config-Ack");
+	if (test_failed)
+		return;
+	assert_true(response[3] == 0x01, "identifier should match request");
+	if (test_failed)
+		return;
+	assert_true(ip_payload == NULL, "no IP payload expected");
+	if (test_failed)
+		return;
 
 	free(response);
 	PASS();
@@ -151,9 +187,15 @@ static void test_lcp_reject_auth(void)
 
 	ret = ppp_process_incoming(&ctx, lcp_with_auth, sizeof(lcp_with_auth),
 	                           &response, &resp_len, &ip_payload, &ip_len);
-	ASSERT(ret == PPP_RET_OK, "should return OK");
-	ASSERT(response != NULL, "should generate response");
-	ASSERT(response[2] == PPP_CODE_CONF_REJ, "should be Config-Reject");
+	assert_true(ret == PPP_RET_OK, "should return OK");
+	if (test_failed)
+		return;
+	assert_true(response != NULL, "should generate response");
+	if (test_failed)
+		return;
+	assert_true(response[2] == PPP_CODE_CONF_REJ, "should be Config-Reject");
+	if (test_failed)
+		return;
 
 	free(response);
 	PASS();
@@ -183,11 +225,21 @@ static void test_lcp_ack_starts_ipcp(void)
 
 	ret = ppp_process_incoming(&ctx, lcp_conf_ack, sizeof(lcp_conf_ack),
 	                           &response, &resp_len, &ip_payload, &ip_len);
-	ASSERT(ret == PPP_RET_OK, "should return OK");
-	ASSERT(ctx.state == PPP_STATE_IPCP_SENT, "state should be IPCP_SENT");
-	ASSERT(response != NULL, "should generate IPCP Config-Request");
-	ASSERT(response[0] == 0x80 && response[1] == 0x21, "should be IPCP");
-	ASSERT(response[2] == PPP_CODE_CONF_REQ, "should be Config-Request");
+	assert_true(ret == PPP_RET_OK, "should return OK");
+	if (test_failed)
+		return;
+	assert_true(ctx.state == PPP_STATE_IPCP_SENT, "state should be IPCP_SENT");
+	if (test_failed)
+		return;
+	assert_true(response != NULL, "should generate IPCP Config-Request");
+	if (test_failed)
+		return;
+	assert_true(response[0] == 0x80 && response[1] == 0x21, "should be IPCP");
+	if (test_failed)
+		return;
+	assert_true(response[2] == PPP_CODE_CONF_REQ, "should be Config-Request");
+	if (test_failed)
+		return;
 
 	free(response);
 	PASS();
@@ -225,10 +277,18 @@ static void test_ipcp_nak_assigns_ip(void)
 
 	ret = ppp_process_incoming(&ctx, ipcp_nak, sizeof(ipcp_nak),
 	                           &response, &resp_len, &ip_payload, &ip_len);
-	ASSERT(ret == PPP_RET_OK, "should return OK");
-	ASSERT(response != NULL, "should generate re-request");
-	ASSERT(response[0] == 0x80 && response[1] == 0x21, "should be IPCP");
-	ASSERT(response[2] == PPP_CODE_CONF_REQ, "should be Config-Request");
+	assert_true(ret == PPP_RET_OK, "should return OK");
+	if (test_failed)
+		return;
+	assert_true(response != NULL, "should generate re-request");
+	if (test_failed)
+		return;
+	assert_true(response[0] == 0x80 && response[1] == 0x21, "should be IPCP");
+	if (test_failed)
+		return;
+	assert_true(response[2] == PPP_CODE_CONF_REQ, "should be Config-Request");
+	if (test_failed)
+		return;
 
 	/* Verify the IP was stored */
 	{
@@ -236,11 +296,11 @@ static void test_ipcp_nak_assigns_ip(void)
 		uint8_t expected_dns1[] = {0x08, 0x08, 0x08, 0x08};
 		uint8_t expected_dns2[] = {0x08, 0x08, 0x04, 0x04};
 
-		ASSERT(memcmp(&ctx.local_ip, expected_ip, 4) == 0,
+		assert_true(memcmp(&ctx.local_ip, expected_ip, 4) == 0,
 		       "local_ip should be 10.0.1.100");
-		ASSERT(memcmp(&ctx.dns_primary, expected_dns1, 4) == 0,
+		assert_true(memcmp(&ctx.dns_primary, expected_dns1, 4) == 0,
 		       "DNS1 should be 8.8.8.8");
-		ASSERT(memcmp(&ctx.dns_secondary, expected_dns2, 4) == 0,
+		assert_true(memcmp(&ctx.dns_secondary, expected_dns2, 4) == 0,
 		       "DNS2 should be 8.8.4.4");
 	}
 
@@ -271,9 +331,15 @@ static void test_ipcp_ack_completes(void)
 
 	ret = ppp_process_incoming(&ctx, ipcp_ack, sizeof(ipcp_ack),
 	                           &response, &resp_len, &ip_payload, &ip_len);
-	ASSERT(ret == PPP_RET_NEGOTIATE, "should return NEGOTIATE");
-	ASSERT(ctx.state == PPP_STATE_IPCP_OPEN, "state should be IPCP_OPEN");
-	ASSERT(ctx.negotiation_complete == 1, "negotiation should be complete");
+	assert_true(ret == PPP_RET_NEGOTIATE, "should return NEGOTIATE");
+	if (test_failed)
+		return;
+	assert_true(ctx.state == PPP_STATE_IPCP_OPEN, "state should be IPCP_OPEN");
+	if (test_failed)
+		return;
+	assert_true(ctx.negotiation_complete == 1, "negotiation should be complete");
+	if (test_failed)
+		return;
 
 	free(response);
 	PASS();
@@ -306,11 +372,21 @@ static void test_ip_packet_extraction(void)
 
 	ret = ppp_process_incoming(&ctx, ip_data_pkt, sizeof(ip_data_pkt),
 	                           &response, &resp_len, &ip_payload, &ip_len);
-	ASSERT(ret == PPP_RET_IP_PACKET, "should return IP_PACKET");
-	ASSERT(ip_payload != NULL, "ip_payload should not be NULL");
-	ASSERT(ip_len == sizeof(ip_data_pkt) - 2, "ip_len should be packet minus protocol field");
-	ASSERT(ip_payload[0] == 0x45, "first byte should be IP version+IHL");
-	ASSERT(response == NULL, "no response for IP data");
+	assert_true(ret == PPP_RET_IP_PACKET, "should return IP_PACKET");
+	if (test_failed)
+		return;
+	assert_true(ip_payload != NULL, "ip_payload should not be NULL");
+	if (test_failed)
+		return;
+	assert_true(ip_len == sizeof(ip_data_pkt) - 2, "ip_len should be packet minus protocol field");
+	if (test_failed)
+		return;
+	assert_true(ip_payload[0] == 0x45, "first byte should be IP version+IHL");
+	if (test_failed)
+		return;
+	assert_true(response == NULL, "no response for IP data");
+	if (test_failed)
+		return;
 
 	free(ip_payload);
 	PASS();
@@ -328,10 +404,18 @@ static void test_ip_encapsulation(void)
 
 	TEST("IP packet encapsulation");
 	ret = ppp_encapsulate_ip(ip_data, sizeof(ip_data), &ppp_data, &ppp_len);
-	ASSERT(ret == 0, "should return 0");
-	ASSERT(ppp_len == sizeof(ip_data) + 2, "length should include protocol field");
-	ASSERT(ppp_data[0] == 0x00 && ppp_data[1] == 0x21, "protocol should be 0x0021");
-	ASSERT(memcmp(&ppp_data[2], ip_data, sizeof(ip_data)) == 0, "data should match");
+	assert_true(ret == 0, "should return 0");
+	if (test_failed)
+		return;
+	assert_true(ppp_len == sizeof(ip_data) + 2, "length should include protocol field");
+	if (test_failed)
+		return;
+	assert_true(ppp_data[0] == 0x00 && ppp_data[1] == 0x21, "protocol should be 0x0021");
+	if (test_failed)
+		return;
+	assert_true(memcmp(&ppp_data[2], ip_data, sizeof(ip_data)) == 0, "data should match");
+	if (test_failed)
+		return;
 
 	free(ppp_data);
 	PASS();
@@ -361,10 +445,18 @@ static void test_lcp_echo(void)
 
 	ret = ppp_process_incoming(&ctx, echo_req, sizeof(echo_req),
 	                           &response, &resp_len, &ip_payload, &ip_len);
-	ASSERT(ret == PPP_RET_OK, "should return OK");
-	ASSERT(response != NULL, "should generate Echo-Reply");
-	ASSERT(response[2] == PPP_CODE_ECHO_REP, "should be Echo-Reply");
-	ASSERT(response[3] == 0x05, "identifier should match");
+	assert_true(ret == PPP_RET_OK, "should return OK");
+	if (test_failed)
+		return;
+	assert_true(response != NULL, "should generate Echo-Reply");
+	if (test_failed)
+		return;
+	assert_true(response[2] == PPP_CODE_ECHO_REP, "should be Echo-Reply");
+	if (test_failed)
+		return;
+	assert_true(response[3] == 0x05, "identifier should match");
+	if (test_failed)
+		return;
 
 	free(response);
 	PASS();
@@ -393,10 +485,18 @@ static void test_lcp_terminate(void)
 
 	ret = ppp_process_incoming(&ctx, term_req, sizeof(term_req),
 	                           &response, &resp_len, &ip_payload, &ip_len);
-	ASSERT(ret == PPP_RET_TERMINATED, "should return TERMINATED");
-	ASSERT(ctx.state == PPP_STATE_TERMINATED, "state should be TERMINATED");
-	ASSERT(response != NULL, "should generate Terminate-Ack");
-	ASSERT(response[2] == PPP_CODE_TERM_ACK, "should be Terminate-Ack");
+	assert_true(ret == PPP_RET_TERMINATED, "should return TERMINATED");
+	if (test_failed)
+		return;
+	assert_true(ctx.state == PPP_STATE_TERMINATED, "state should be TERMINATED");
+	if (test_failed)
+		return;
+	assert_true(response != NULL, "should generate Terminate-Ack");
+	if (test_failed)
+		return;
+	assert_true(response[2] == PPP_CODE_TERM_ACK, "should be Terminate-Ack");
+	if (test_failed)
+		return;
 
 	free(response);
 	PASS();
@@ -423,10 +523,18 @@ static void test_unknown_protocol(void)
 
 	ret = ppp_process_incoming(&ctx, unknown_proto, sizeof(unknown_proto),
 	                           &response, &resp_len, &ip_payload, &ip_len);
-	ASSERT(ret == PPP_RET_OK, "should return OK");
-	ASSERT(response != NULL, "should generate Protocol-Reject");
-	ASSERT(response[0] == 0xc0 && response[1] == 0x21, "should be LCP");
-	ASSERT(response[2] == PPP_CODE_PROTO_REJ, "should be Protocol-Reject");
+	assert_true(ret == PPP_RET_OK, "should return OK");
+	if (test_failed)
+		return;
+	assert_true(response != NULL, "should generate Protocol-Reject");
+	if (test_failed)
+		return;
+	assert_true(response[0] == 0xc0 && response[1] == 0x21, "should be LCP");
+	if (test_failed)
+		return;
+	assert_true(response[2] == PPP_CODE_PROTO_REJ, "should be Protocol-Reject");
+	if (test_failed)
+		return;
 
 	free(response);
 	PASS();
@@ -447,8 +555,12 @@ static void test_full_negotiation(void)
 
 	/* Step 1: Start negotiation (sends LCP Config-Request) */
 	ret = ppp_start_negotiation(&ctx, &start_pkt, &start_len);
-	ASSERT(ret == 0, "start should succeed");
-	ASSERT(ctx.state == PPP_STATE_LCP_SENT, "should be LCP_SENT");
+	assert_true(ret == 0, "start should succeed");
+	if (test_failed)
+		return;
+	assert_true(ctx.state == PPP_STATE_LCP_SENT, "should be LCP_SENT");
+	if (test_failed)
+		return;
 	free(start_pkt);
 
 	/*
@@ -461,8 +573,12 @@ static void test_full_negotiation(void)
 	};
 	ret = ppp_process_incoming(&ctx, peer_lcp_req, sizeof(peer_lcp_req),
 	                           &response, &resp_len, &ip_payload, &ip_len);
-	ASSERT(ret == PPP_RET_OK && response != NULL, "should ack peer LCP");
-	ASSERT(response[2] == PPP_CODE_CONF_ACK, "should be Config-Ack");
+	assert_true(ret == PPP_RET_OK && response != NULL, "should ack peer LCP");
+	if (test_failed)
+		return;
+	assert_true(response[2] == PPP_CODE_CONF_ACK, "should be Config-Ack");
+	if (test_failed)
+		return;
 	free(response);
 
 	/* Step 3: Peer sends LCP Config-Ack (our LCP req accepted) -> triggers IPCP */
@@ -471,9 +587,15 @@ static void test_full_negotiation(void)
 	};
 	ret = ppp_process_incoming(&ctx, peer_lcp_ack, sizeof(peer_lcp_ack),
 	                           &response, &resp_len, &ip_payload, &ip_len);
-	ASSERT(ret == PPP_RET_OK, "should handle LCP ack");
-	ASSERT(ctx.state == PPP_STATE_IPCP_SENT, "should be IPCP_SENT");
-	ASSERT(response != NULL, "should send IPCP Config-Request");
+	assert_true(ret == PPP_RET_OK, "should handle LCP ack");
+	if (test_failed)
+		return;
+	assert_true(ctx.state == PPP_STATE_IPCP_SENT, "should be IPCP_SENT");
+	if (test_failed)
+		return;
+	assert_true(response != NULL, "should send IPCP Config-Request");
+	if (test_failed)
+		return;
 	free(response);
 
 	/* Step 4: Peer IPCP Config-Nak with assigned addresses */
@@ -485,8 +607,12 @@ static void test_full_negotiation(void)
 	};
 	ret = ppp_process_incoming(&ctx, peer_ipcp_nak, sizeof(peer_ipcp_nak),
 	                           &response, &resp_len, &ip_payload, &ip_len);
-	ASSERT(ret == PPP_RET_OK, "should handle IPCP Nak");
-	ASSERT(response != NULL, "should re-send IPCP request");
+	assert_true(ret == PPP_RET_OK, "should handle IPCP Nak");
+	if (test_failed)
+		return;
+	assert_true(response != NULL, "should re-send IPCP request");
+	if (test_failed)
+		return;
 	free(response);
 
 	/* Step 5: Peer sends IPCP Config-Ack -> negotiation complete */
@@ -495,9 +621,15 @@ static void test_full_negotiation(void)
 	};
 	ret = ppp_process_incoming(&ctx, peer_ipcp_ack, sizeof(peer_ipcp_ack),
 	                           &response, &resp_len, &ip_payload, &ip_len);
-	ASSERT(ret == PPP_RET_NEGOTIATE, "should signal negotiation complete");
-	ASSERT(ctx.state == PPP_STATE_IPCP_OPEN, "should be IPCP_OPEN");
-	ASSERT(ctx.negotiation_complete == 1, "negotiation should be flagged complete");
+	assert_true(ret == PPP_RET_NEGOTIATE, "should signal negotiation complete");
+	if (test_failed)
+		return;
+	assert_true(ctx.state == PPP_STATE_IPCP_OPEN, "should be IPCP_OPEN");
+	if (test_failed)
+		return;
+	assert_true(ctx.negotiation_complete == 1, "negotiation should be flagged complete");
+	if (test_failed)
+		return;
 	free(response);
 
 	/* Step 6: Peer sends IP data packet */
@@ -509,8 +641,12 @@ static void test_full_negotiation(void)
 	};
 	ret = ppp_process_incoming(&ctx, ip_data, sizeof(ip_data),
 	                           &response, &resp_len, &ip_payload, &ip_len);
-	ASSERT(ret == PPP_RET_IP_PACKET, "should extract IP packet");
-	ASSERT(ip_len == sizeof(ip_data) - 2, "IP length should match");
+	assert_true(ret == PPP_RET_IP_PACKET, "should extract IP packet");
+	if (test_failed)
+		return;
+	assert_true(ip_len == sizeof(ip_data) - 2, "IP length should match");
+	if (test_failed)
+		return;
 	free(ip_payload);
 	free(response);
 
