@@ -980,12 +980,7 @@ static int parse_xml_config(struct tunnel *tunnel, const char *buffer)
 			continue;
 		}
 
-#ifndef _WIN32
-		/* On Unix, apply routes immediately (pppd creates interface first).
-		 * On Windows, routes are deferred to ipv4_set_tunnel_routes()
-		 * because the wintun adapter doesn't exist yet at this point. */
 		ipv4_add_split_vpn_route(tunnel, dest, mask, gateway);
-#endif
 
 		free(dest);
 		free(mask);

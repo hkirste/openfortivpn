@@ -156,22 +156,43 @@ int ipv4_drop_wrong_route(struct tunnel *tunnel)
 int ipv4_add_split_vpn_route(struct tunnel *tunnel, char *dest, char *mask,
                              char *gateway)
 {
+	struct rtentry *route;
 	struct in_addr dest_addr, mask_addr, gw_addr;
-
-	(void)tunnel;
 
 	inet_pton(AF_INET, dest, &dest_addr);
 	inet_pton(AF_INET, mask, &mask_addr);
 	inet_pton(AF_INET, gateway, &gw_addr);
 
-	log_info("Adding split route: %s/%s via %s\n", dest, mask, gateway);
+	log_info("Storing split route: %s/%s via %s\n",
+	         dest, mask, gateway);
 
-	if (!tun_luid_valid) {
-		log_error("TUN adapter LUID not set.\n");
+	/*
+	 * Store the route for deferred application. On Windows the TUN
+	 * adapter does not exist yet when auth_get_config parses the XML.
+	 * Routes are applied later in ipv4_set_tunnel_routes().
+	 */
+	if (tunnel->ipv4.split_routes == MAX_SPLIT_ROUTES)
 		return -1;
+	if ((tunnel->ipv4.split_rt == NULL)
+	    || ((tunnel->ipv4.split_routes % STEP_SPLIT_ROUTES) == 0)) {
+		void *new_ptr;
+
+		new_ptr = realloc(tunnel->ipv4.split_rt,
+		                  (size_t)(tunnel->ipv4.split_routes
+		                           + STEP_SPLIT_ROUTES)
+		                  * sizeof(*(tunnel->ipv4.split_rt)));
+		if (new_ptr == NULL)
+			return -1;
+		tunnel->ipv4.split_rt = new_ptr;
 	}
 
-	return add_route(dest_addr, mask_addr, gw_addr, &tun_luid, 0);
+	route = &tunnel->ipv4.split_rt[tunnel->ipv4.split_routes++];
+	memset(route, 0, sizeof(*route));
+	cast_addr(&route->rt_dst)->sin_addr = dest_addr;
+	cast_addr(&route->rt_genmask)->sin_addr = mask_addr;
+	cast_addr(&route->rt_gateway)->sin_addr = gw_addr;
+
+	return 0;
 }
 
 int ipv4_set_tunnel_routes(struct tunnel *tunnel)
@@ -187,17 +208,25 @@ int ipv4_set_tunnel_routes(struct tunnel *tunnel)
 	/* Save existing default route */
 	save_default_route();
 
-	/* Add route to VPN gateway via existing default route */
+	/*
+	 * Add route to VPN gateway via existing default route.
+	 * This prevents routing loops in full-tunnel mode. For split-tunnel
+	 * mode it is not strictly necessary — if it fails, continue anyway
+	 * so the split routes can still be applied.
+	 */
 	if (saved_default_route.valid) {
 		struct in_addr saved_gw;
 
 		saved_gw = saved_default_route.row.NextHop.Ipv4.sin_addr;
 		ret = add_route(gateway_ip, full_mask, saved_gw, NULL, 0);
 		if (ret) {
-			log_error("Could not add route to VPN gateway.\n");
-			return ret;
+			log_warn("Could not add route to VPN gateway.\n");
+			if (tunnel->ipv4.split_routes == 0)
+				return ret;
+			/* Split tunnel: continue without gateway route */
+		} else {
+			tunnel->ipv4.route_to_vpn_is_added = 1;
 		}
-		tunnel->ipv4.route_to_vpn_is_added = 1;
 	}
 
 	if (!tun_luid_valid) {
