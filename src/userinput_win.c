@@ -37,6 +37,7 @@ static void console_read_password(const char *prompt, char *pass, size_t len)
 	HANDLE hStdin;
 	DWORD mode, chars_read;
 	size_t pos = 0;
+	int is_console;
 
 	fputs(prompt, stderr);
 	fflush(stderr);
@@ -48,16 +49,25 @@ static void console_read_password(const char *prompt, char *pass, size_t len)
 		return;
 	}
 
-	/* Save current mode and disable echo */
-	GetConsoleMode(hStdin, &mode);
-	SetConsoleMode(hStdin, mode & ~(ENABLE_ECHO_INPUT));
+	/*
+	 * Detect whether stdin is a console or a pipe.
+	 * When launched by the GUI with redirected stdin,
+	 * GetConsoleMode fails and we must use ReadFile.
+	 */
+	is_console = GetConsoleMode(hStdin, &mode);
 
-	/* Read character by character */
+	if (is_console)
+		SetConsoleMode(hStdin, mode & ~(ENABLE_ECHO_INPUT));
+
 	while (pos < len - 1) {
 		char c;
 		BOOL ok;
 
-		ok = ReadConsoleA(hStdin, &c, 1, &chars_read, NULL);
+		if (is_console)
+			ok = ReadConsoleA(hStdin, &c, 1, &chars_read, NULL);
+		else
+			ok = ReadFile(hStdin, &c, 1, &chars_read, NULL);
+
 		if (!ok || chars_read == 0)
 			break;
 		if (c == '\r' || c == '\n')
@@ -66,9 +76,10 @@ static void console_read_password(const char *prompt, char *pass, size_t len)
 	}
 	pass[pos] = '\0';
 
-	/* Restore console mode */
-	SetConsoleMode(hStdin, mode);
-	fputs("\n", stderr);
+	if (is_console) {
+		SetConsoleMode(hStdin, mode);
+		fputs("\n", stderr);
+	}
 }
 
 /*
