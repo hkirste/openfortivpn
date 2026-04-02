@@ -324,8 +324,7 @@ static void *tun_read_thread(void *arg)
 					        &tunnel->pty_to_ssl_pool,
 					        packet);
 					log_debug(
-					        "tun ---> gateway"
-					        " (%lu bytes)\n",
+					        "tun ---> gateway (%lu bytes)\n",
 					        (unsigned long)ppp_len);
 				}
 				free(ppp_data);

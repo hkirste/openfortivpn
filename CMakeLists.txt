@@ -14,6 +14,7 @@ find_package(OpenSSL REQUIRED)
 # Common sources (platform-independent)
 set(COMMON_SOURCES
     src/config.c
+    src/event.c
     src/hdlc.c
     src/http.c
     src/xml.c
@@ -36,10 +37,6 @@ if(WIN32)
     if(MSVC)
         list(APPEND PLATFORM_SOURCES lib/getopt/getopt.c)
         set(GETOPT_INCLUDE_DIR "${CMAKE_SOURCE_DIR}/lib/getopt")
-
-        # PThreads4W for MSVC (MinGW has its own pthreads)
-        find_package(PThreads4W REQUIRED)
-        list(APPEND PLATFORM_LIBS PThreads4W::PThreads4W)
     endif()
 
     # Platform definitions

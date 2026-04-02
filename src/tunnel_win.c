@@ -78,8 +78,7 @@ static int wintun_create(struct tunnel *tunnel)
 	/* Create the adapter */
 	adapter = wt_api.CreateAdapter(ADAPTER_NAME, TUNNEL_TYPE, NULL);
 	if (!adapter) {
-		log_error("Failed to create wintun adapter (error %lu).\n"
-		          "Ensure you are running as Administrator.\n",
+		log_error("Failed to create wintun adapter (error %lu).\nEnsure you are running as Administrator.\n",
 		          GetLastError());
 		return 1;
 	}
@@ -343,10 +342,14 @@ int ssl_connect(struct tunnel *tunnel)
 					log_error("Server certificate verification failed.\n");
 					log_error("Certificate digest: %s\n",
 					          digest_str);
-					event_emit("cert_error",
-					           "\"digest\":\"%s\","
-					           "\"reason\":\"verification_failed\"",
-					           digest_str);
+					{
+						char buf[256];
+
+						snprintf(buf, sizeof(buf),
+						         "\"digest\":\"%s\",\"reason\":\"verification_failed\"",
+						         digest_str);
+						event_emit("cert_error", buf);
+					}
 					return OFV_EXIT_CERT_FAILED;
 				}
 				log_debug("Trusted certificate matched.\n");
@@ -395,11 +398,14 @@ static int get_gateway_host_ip(struct tunnel *tunnel)
 	if (ret != 0 || !result) {
 		log_error("Could not resolve host: %s\n",
 		          tunnel->config->gateway_host);
-		event_emit("error",
-		           "\"code\":%d,"
-		           "\"category\":\"dns\","
-		           "\"message\":\"Could not resolve host\"",
-		           OFV_EXIT_DNS_FAILED);
+		{
+			char buf[128];
+
+			snprintf(buf, sizeof(buf),
+			         "\"code\":%d,\"category\":\"dns\",\"message\":\"Could not resolve host\"",
+			         OFV_EXIT_DNS_FAILED);
+			event_emit("error", buf);
+		}
 		return 1;
 	}
 
@@ -443,15 +449,16 @@ static int on_ppp_if_up(struct tunnel *tunnel)
 			char dns1_str[INET_ADDRSTRLEN] = "";
 			char dns2_str[INET_ADDRSTRLEN] = "";
 
+			char buf[256];
+
 			inet_ntop(AF_INET, &tunnel->ipv4.ns1_addr,
 			          dns1_str, sizeof(dns1_str));
 			inet_ntop(AF_INET, &tunnel->ipv4.ns2_addr,
 			          dns2_str, sizeof(dns2_str));
-			event_emit("tunnel_up",
-			           "\"local_ip\":\"%s\","
-			           "\"dns1\":\"%s\","
-			           "\"dns2\":\"%s\"",
-			           ip_str, dns1_str, dns2_str);
+			snprintf(buf, sizeof(buf),
+			         "\"local_ip\":\"%s\",\"dns1\":\"%s\",\"dns2\":\"%s\"",
+			         ip_str, dns1_str, dns2_str);
+			event_emit("tunnel_up", buf);
 		}
 	}
 
@@ -590,9 +597,7 @@ int run_tunnel(struct vpn_config *config)
 	event_emit("state_change", "\"state\":\"tunneling\"");
 	log_debug("Switch to tunneling mode\n");
 	ret = http_send(&tunnel,
-	                "GET /remote/sslvpn-tunnel HTTP/1.1\r\n"
-	                "Host: sslvpn\r\n"
-	                "Cookie: %s\r\n\r\n",
+	                "GET /remote/sslvpn-tunnel HTTP/1.1\r\nHost: sslvpn\r\nCookie: %s\r\n\r\n",
 	                tunnel.cookie);
 	if (ret != 1) {
 		log_error("Could not start tunnel.\n");
