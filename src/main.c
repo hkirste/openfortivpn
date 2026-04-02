@@ -19,6 +19,8 @@
 #include "tunnel.h"
 #include "userinput.h"
 #include "log.h"
+#include "event.h"
+#include "exit_codes.h"
 #include "http_server.h"
 
 #include <openssl/ssl.h>
@@ -313,6 +315,7 @@ int main(int argc, char *argv[])
 		{"set-dns",              required_argument, NULL, 0},
 		{"no-dns",               no_argument, &cli_cfg.set_dns, 0},
 		{"use-syslog",           no_argument, &cli_cfg.use_syslog, 1},
+		{"json-events",          no_argument,       NULL, 0},
 		{"persistent",           required_argument, NULL, 0},
 		{"ca-file",              required_argument, NULL, 0},
 		{"user-cert",            required_argument, NULL, 0},
@@ -374,6 +377,11 @@ int main(int argc, char *argv[])
 					log_debug("Revision " REVISION "\n");
 				ret = EXIT_SUCCESS;
 				goto exit;
+			}
+			if (strcmp(long_options[option_index].name,
+			           "json-events") == 0) {
+				event_init(1);
+				break;
 			}
 #if HAVE_USR_SBIN_PPPD || defined(_WIN32)
 			if (strcmp(long_options[option_index].name,
@@ -804,9 +812,8 @@ int main(int argc, char *argv[])
 	}
 
 	do {
-		if (run_tunnel(&cfg) != 0)
-			ret = EXIT_FAILURE;
-		else
+		ret = run_tunnel(&cfg);
+		if (ret == 0)
 			ret = EXIT_SUCCESS;
 		if ((cfg.persistent > 0) && (get_sig_received() == 0))
 			sleep(cfg.persistent);
