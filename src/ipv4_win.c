@@ -48,16 +48,6 @@ static struct win_route vpn_gateway_route;
 static NET_LUID tun_luid;
 static int tun_luid_valid;
 
-/* Deferred split routes - stored during config, applied after adapter creation */
-#define MAX_DEFERRED_ROUTES 256
-struct deferred_route {
-	struct in_addr dest;
-	struct in_addr mask;
-	struct in_addr gateway;
-};
-static struct deferred_route deferred_routes[MAX_DEFERRED_ROUTES];
-static int num_deferred_routes;
-
 void ipv4_win_set_tun_luid(NET_LUID *luid)
 {
 	tun_luid = *luid;
@@ -166,47 +156,43 @@ int ipv4_drop_wrong_route(struct tunnel *tunnel)
 int ipv4_add_split_vpn_route(struct tunnel *tunnel, char *dest, char *mask,
                              char *gateway)
 {
+	struct rtentry *route;
 	struct in_addr dest_addr, mask_addr, gw_addr;
-
-	(void)tunnel;
 
 	inet_pton(AF_INET, dest, &dest_addr);
 	inet_pton(AF_INET, mask, &mask_addr);
 	inet_pton(AF_INET, gateway, &gw_addr);
 
-	log_info("Adding split route: %s/%s via %s\n", dest, mask, gateway);
+	log_info("Storing split route: %s/%s via %s\n",
+	         dest, mask, gateway);
 
-	if (!tun_luid_valid) {
-		/* Defer route until TUN adapter is created */
-		if (num_deferred_routes < MAX_DEFERRED_ROUTES) {
-			deferred_routes[num_deferred_routes].dest = dest_addr;
-			deferred_routes[num_deferred_routes].mask = mask_addr;
-			deferred_routes[num_deferred_routes].gateway = gw_addr;
-			num_deferred_routes++;
-			log_debug("Route deferred (adapter not ready).\n");
-		}
-		return 0;
+	/*
+	 * Store the route for deferred application. On Windows the TUN
+	 * adapter does not exist yet when auth_get_config parses the XML.
+	 * Routes are applied later in ipv4_set_tunnel_routes().
+	 */
+	if (tunnel->ipv4.split_routes == MAX_SPLIT_ROUTES)
+		return -1;
+	if ((tunnel->ipv4.split_rt == NULL)
+	    || ((tunnel->ipv4.split_routes % STEP_SPLIT_ROUTES) == 0)) {
+		void *new_ptr;
+
+		new_ptr = realloc(tunnel->ipv4.split_rt,
+		                  (size_t)(tunnel->ipv4.split_routes
+		                           + STEP_SPLIT_ROUTES)
+		                  * sizeof(*(tunnel->ipv4.split_rt)));
+		if (new_ptr == NULL)
+			return -1;
+		tunnel->ipv4.split_rt = new_ptr;
 	}
 
-	return add_route(dest_addr, mask_addr, gw_addr, &tun_luid, 0);
-}
+	route = &tunnel->ipv4.split_rt[tunnel->ipv4.split_routes++];
+	memset(route, 0, sizeof(*route));
+	cast_addr(&route->rt_dst)->sin_addr = dest_addr;
+	cast_addr(&route->rt_genmask)->sin_addr = mask_addr;
+	cast_addr(&route->rt_gateway)->sin_addr = gw_addr;
 
-void ipv4_apply_deferred_routes(void)
-{
-	int i;
-
-	for (i = 0; i < num_deferred_routes; i++) {
-		char dest_str[INET_ADDRSTRLEN], mask_str[INET_ADDRSTRLEN];
-
-		inet_ntop(AF_INET, &deferred_routes[i].dest,
-		          dest_str, sizeof(dest_str));
-		inet_ntop(AF_INET, &deferred_routes[i].mask,
-		          mask_str, sizeof(mask_str));
-		log_info("Applying deferred route: %s/%s\n", dest_str, mask_str);
-		add_route(deferred_routes[i].dest, deferred_routes[i].mask,
-		          deferred_routes[i].gateway, &tun_luid, 0);
-	}
-	num_deferred_routes = 0;
+	return 0;
 }
 
 int ipv4_set_tunnel_routes(struct tunnel *tunnel)
@@ -222,17 +208,25 @@ int ipv4_set_tunnel_routes(struct tunnel *tunnel)
 	/* Save existing default route */
 	save_default_route();
 
-	/* Add route to VPN gateway via existing default route */
+	/*
+	 * Add route to VPN gateway via existing default route.
+	 * This prevents routing loops in full-tunnel mode. For split-tunnel
+	 * mode it is not strictly necessary — if it fails, continue anyway
+	 * so the split routes can still be applied.
+	 */
 	if (saved_default_route.valid) {
 		struct in_addr saved_gw;
 
 		saved_gw = saved_default_route.row.NextHop.Ipv4.sin_addr;
 		ret = add_route(gateway_ip, full_mask, saved_gw, NULL, 0);
 		if (ret) {
-			log_error("Could not add route to VPN gateway.\n");
-			return ret;
+			log_warn("Could not add route to VPN gateway.\n");
+			if (tunnel->ipv4.split_routes == 0)
+				return ret;
+			/* Split tunnel: continue without gateway route */
+		} else {
+			tunnel->ipv4.route_to_vpn_is_added = 1;
 		}
-		tunnel->ipv4.route_to_vpn_is_added = 1;
 	}
 
 	if (!tun_luid_valid) {
@@ -241,7 +235,15 @@ int ipv4_set_tunnel_routes(struct tunnel *tunnel)
 	}
 
 	if (tunnel->ipv4.split_routes > 0) {
-		/* Split routes are handled individually via ipv4_add_split_vpn_route */
+		/* Apply deferred split routes now that the adapter exists */
+		for (int i = 0; i < tunnel->ipv4.split_routes; i++) {
+			struct rtentry *rt = &tunnel->ipv4.split_rt[i];
+
+			ret = add_route(route_dest(rt), route_mask(rt),
+			                route_gtw(rt), &tun_luid, 0);
+			if (ret)
+				log_warn("Failed to add split route %d\n", i);
+		}
 		return 0;
 	}
 
