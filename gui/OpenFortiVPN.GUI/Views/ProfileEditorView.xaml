@@ -76,6 +76,7 @@
                     <TextBlock Text="Password" Style="{StaticResource CaptionStyle}"
                                Margin="0,0,0,4" />
                     <PasswordBox Style="{StaticResource ModernPasswordBoxStyle}"
+                                 helpers:PasswordBoxHelper.Attach="True"
                                  helpers:PasswordBoxHelper.BoundPassword="{Binding Password, UpdateSourceTrigger=PropertyChanged}"
                                  Margin="0,0,0,8" />
 

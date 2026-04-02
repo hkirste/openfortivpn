@@ -91,6 +91,8 @@ public sealed class VpnService : IVpnService, IDisposable
             _process.Exited += OnProcessExited;
             _process.Start();
 
+            _logger.LogDebug("Password length: {Len}",
+                             password?.Length ?? -1);
             if (!string.IsNullOrEmpty(password))
             {
                 await _process.StandardInput.WriteLineAsync(password);
@@ -301,8 +303,9 @@ public sealed class VpnService : IVpnService, IDisposable
                 TransitionTo(ConnectionState.NegotiatingTunnel);
                 break;
             case "connected":
-                CurrentConnection.ConnectedSince = DateTime.Now;
-                TransitionTo(ConnectionState.Connected);
+                /* Don't transition here — wait for tunnel_up which
+                 * carries the actual IP/DNS data. The state_change
+                 * "connected" arrives before tunnel_up. */
                 break;
             case "disconnecting":
                 TransitionTo(ConnectionState.Disconnecting);

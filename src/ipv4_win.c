@@ -206,7 +206,15 @@ int ipv4_set_tunnel_routes(struct tunnel *tunnel)
 	}
 
 	if (tunnel->ipv4.split_routes > 0) {
-		/* Split routes are handled individually via ipv4_add_split_vpn_route */
+		/* Apply deferred split routes now that the adapter exists */
+		for (int i = 0; i < tunnel->ipv4.split_routes; i++) {
+			struct rtentry *rt = &tunnel->ipv4.split_rt[i];
+
+			ret = add_route(route_dest(rt), route_mask(rt),
+			                route_gtw(rt), &tun_luid, 0);
+			if (ret)
+				log_warn("Failed to add split route %d\n", i);
+		}
 		return 0;
 	}
 

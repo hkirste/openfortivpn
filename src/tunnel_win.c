@@ -120,13 +120,6 @@ static int wintun_configure_ip(struct tunnel *tunnel)
 	DWORD ret;
 	char ip_str[INET_ADDRSTRLEN];
 
-	wt_api.GetAdapterLUID(
-	        wt_api.CreateAdapter ? (WINTUN_ADAPTER_HANDLE)NULL : NULL,
-	        &luid);
-
-	/* We already have the LUID from creation */
-	/* Re-fetch it from the adapter stored in tunnel */
-
 	/* Use netsh to set the IP address (most reliable approach) */
 	inet_ntop(AF_INET, &tunnel->ipv4.ip_addr, ip_str, sizeof(ip_str));
 

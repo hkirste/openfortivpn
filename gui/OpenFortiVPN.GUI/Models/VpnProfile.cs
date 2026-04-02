@@ -140,9 +140,6 @@ public class VpnProfile
             args.Add($"--persistent={PersistentInterval}");
         }
 
-        // Always verbose for GUI parsing
-        args.Add("-v");
-
         // Positional host:port MUST be last (Windows getopt quirk)
         if (!string.IsNullOrWhiteSpace(GatewayHost))
         {
