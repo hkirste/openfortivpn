@@ -33,6 +33,13 @@ public partial class ProfileListViewModel : ObservableObject
         _credentialService = credentialService;
         _navigation = navigation;
 
+        // Refresh when we become the active view (after GoBack)
+        _navigation.Navigated += (_, vm) =>
+        {
+            if (ReferenceEquals(vm, this))
+                RefreshProfiles();
+        };
+
         RefreshProfiles();
     }
 

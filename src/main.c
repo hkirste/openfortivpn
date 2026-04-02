@@ -812,9 +812,8 @@ int main(int argc, char *argv[])
 	}
 
 	do {
-		if (run_tunnel(&cfg) != 0)
-			ret = EXIT_FAILURE;
-		else
+		ret = run_tunnel(&cfg);
+		if (ret == 0)
 			ret = EXIT_SUCCESS;
 		if ((cfg.persistent > 0) && (get_sig_received() == 0))
 			sleep(cfg.persistent);

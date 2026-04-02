@@ -6,6 +6,7 @@
              xmlns:vm="clr-namespace:OpenFortiVPN.GUI.ViewModels"
              xmlns:converters="clr-namespace:OpenFortiVPN.GUI.Converters"
              xmlns:controls="clr-namespace:OpenFortiVPN.GUI.Controls"
+             xmlns:helpers="clr-namespace:OpenFortiVPN.GUI.Helpers"
              mc:Ignorable="d"
              d:DataContext="{d:DesignInstance vm:DashboardViewModel}"
              Background="{StaticResource BackgroundBrush}">
@@ -196,6 +197,7 @@
                     <TextBlock Text="Password" Style="{StaticResource CaptionStyle}"
                                Margin="0,0,0,4" />
                     <PasswordBox Style="{StaticResource ModernPasswordBoxStyle}"
+                                 helpers:PasswordBoxHelper.BoundPassword="{Binding Password, UpdateSourceTrigger=PropertyChanged}"
                                  Margin="0,0,0,8" />
 
                     <!-- Save password checkbox -->

@@ -15,6 +15,7 @@ public sealed class ProfileService : IProfileService
     {
         WriteIndented = true,
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        PropertyNameCaseInsensitive = true,
     };
 
     public IReadOnlyList<VpnProfile> Profiles => _profiles.AsReadOnly();
@@ -30,6 +31,8 @@ public sealed class ProfileService : IProfileService
 
     public async Task LoadAsync()
     {
+        _logger.LogDebug("Looking for profiles at {Path}", _profilesPath);
+
         if (!File.Exists(_profilesPath))
         {
             _logger.LogInformation("No profiles file found, starting fresh");
@@ -39,6 +42,7 @@ public sealed class ProfileService : IProfileService
         try
         {
             var json = await File.ReadAllTextAsync(_profilesPath);
+            _logger.LogDebug("Read {Len} bytes from profiles file", json.Length);
             var profiles = JsonSerializer.Deserialize<List<VpnProfile>>(json, JsonOptions);
             if (profiles is not null)
             {

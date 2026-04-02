@@ -14,6 +14,7 @@ public sealed class SettingsService : ISettingsService
     {
         WriteIndented = true,
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        PropertyNameCaseInsensitive = true,
     };
 
     public AppSettings Current { get; private set; } = new();
