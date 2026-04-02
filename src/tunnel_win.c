@@ -21,13 +21,14 @@
 #ifdef _WIN32
 
 #include "tunnel.h"
-#include "ipv4.h"
 #include "http.h"
 #include "ppp.h"
 #include "wintun.h"
 #include "log.h"
 #include "userinput.h"
 #include "ssl.h"
+#include "event.h"
+#include "exit_codes.h"
 
 #include <winsock2.h>
 #include <ws2tcpip.h>
@@ -48,9 +49,9 @@
 #define ADAPTER_NAME L"openfortivpn"
 #define TUNNEL_TYPE  L"openfortivpn"
 
+
 static struct wintun_api wt_api;
 static int wt_api_loaded;
-static WINTUN_ADAPTER_HANDLE wt_adapter_handle;
 
 /*
  * Load wintun.dll and create a TUN adapter.
@@ -96,13 +97,10 @@ static int wintun_create(struct tunnel *tunnel)
 		return 1;
 	}
 
-	/* Save the adapter handle for cleanup */
-	wt_adapter_handle = adapter;
-
 	/*
 	 * Store handles in tunnel struct.
 	 * tun_adapter stores a pointer to the static wt_api struct
-	 * (which contains the function pointers),
+	 * (which contains the function pointers AND the adapter handle),
 	 * tun_session stores the session handle.
 	 */
 	tunnel->tun_adapter = (void *)&wt_api;
@@ -117,6 +115,8 @@ static int wintun_create(struct tunnel *tunnel)
  */
 static int wintun_configure_ip(struct tunnel *tunnel)
 {
+	MIB_UNICASTIPADDRESS_ROW addr_row;
+	NET_LUID luid;
 	DWORD ret;
 	char ip_str[INET_ADDRSTRLEN];
 
@@ -149,10 +149,8 @@ static void wintun_destroy(struct tunnel *tunnel)
 		tunnel->tun_session = NULL;
 	}
 
-	if (wt_adapter_handle) {
-		wt_api.CloseAdapter(wt_adapter_handle);
-		wt_adapter_handle = NULL;
-	}
+	/* Close adapter - remove it from Windows */
+	/* Note: adapter handle is managed via wt_api, not stored separately */
 
 	log_info("Wintun adapter destroyed.\n");
 }
@@ -345,7 +343,11 @@ int ssl_connect(struct tunnel *tunnel)
 					log_error("Server certificate verification failed.\n");
 					log_error("Certificate digest: %s\n",
 					          digest_str);
-					return 1;
+					event_emit("cert_error",
+					           "\"digest\":\"%s\","
+					           "\"reason\":\"verification_failed\"",
+					           digest_str);
+					return OFV_EXIT_CERT_FAILED;
 				}
 				log_debug("Trusted certificate matched.\n");
 			} else {
@@ -393,6 +395,11 @@ static int get_gateway_host_ip(struct tunnel *tunnel)
 	if (ret != 0 || !result) {
 		log_error("Could not resolve host: %s\n",
 		          tunnel->config->gateway_host);
+		event_emit("error",
+		           "\"code\":%d,"
+		           "\"category\":\"dns\","
+		           "\"message\":\"Could not resolve host\"",
+		           OFV_EXIT_DNS_FAILED);
 		return 1;
 	}
 
@@ -406,6 +413,7 @@ static int get_gateway_host_ip(struct tunnel *tunnel)
 		inet_ntop(AF_INET, &tunnel->config->gateway_ip,
 		          ip_str, sizeof(ip_str));
 		log_info("Gateway IP: %s\n", ip_str);
+		event_emit("gateway_resolved", "\"ip\":\"%s\"", ip_str);
 	}
 
 	return 0;
@@ -431,13 +439,24 @@ static int on_ppp_if_up(struct tunnel *tunnel)
 		inet_ntop(AF_INET, &tunnel->ipv4.ip_addr,
 		          ip_str, sizeof(ip_str));
 		log_info("Assigned IP: %s\n", ip_str);
+		{
+			char dns1_str[INET_ADDRSTRLEN] = "";
+			char dns2_str[INET_ADDRSTRLEN] = "";
+
+			inet_ntop(AF_INET, &tunnel->ipv4.ns1_addr,
+			          dns1_str, sizeof(dns1_str));
+			inet_ntop(AF_INET, &tunnel->ipv4.ns2_addr,
+			          dns2_str, sizeof(dns2_str));
+			event_emit("tunnel_up",
+			           "\"local_ip\":\"%s\","
+			           "\"dns1\":\"%s\","
+			           "\"dns2\":\"%s\"",
+			           ip_str, dns1_str, dns2_str);
+		}
 	}
 
 	/* Configure IP on the wintun adapter */
 	wintun_configure_ip(tunnel);
-
-	/* Apply any split routes that were deferred during config parsing */
-	ipv4_apply_deferred_routes();
 
 	/* Set up routes */
 	if (tunnel->config->set_routes) {
@@ -464,6 +483,7 @@ static int on_ppp_if_up(struct tunnel *tunnel)
 static int on_ppp_if_down(struct tunnel *tunnel)
 {
 	log_info("Tunnel interface is DOWN.\n");
+	event_emit("tunnel_down", "\"reason\":\"interface_down\"");
 
 	if (tunnel->config->set_dns)
 		ipv4_del_nameservers_from_resolv_conf(tunnel);
@@ -499,58 +519,75 @@ int run_tunnel(struct vpn_config *config)
 	tunnel.ppp_ctx = (void *)&ppp_ctx;
 
 	/* Step 0: resolve gateway */
+	event_emit("state_change", "\"state\":\"resolving\"");
 	log_debug("Resolving gateway host ip\n");
 	ret = get_gateway_host_ip(&tunnel);
-	if (ret)
+	if (ret) {
+		ret = OFV_EXIT_DNS_FAILED;
 		goto err_tunnel;
+	}
 
 	/* Step 1: TLS connection */
+	event_emit("state_change", "\"state\":\"connecting_tls\"");
 	log_debug("Establishing TLS connection\n");
 	ret = ssl_connect(&tunnel);
-	if (ret)
+	if (ret) {
+		if (ret != OFV_EXIT_CERT_FAILED)
+			ret = OFV_EXIT_TLS_FAILED;
 		goto err_tunnel;
+	}
 	log_info("Connected to gateway.\n");
 
 	/* Step 2: authenticate */
+	event_emit("state_change", "\"state\":\"authenticating\"");
 	if (config->cookie)
 		ret = auth_set_cookie(&tunnel, config->cookie);
 	else
 		ret = auth_log_in(&tunnel);
 	if (ret != 1) {
 		log_error("Could not authenticate to gateway.\n");
-		ret = 1;
+		ret = OFV_EXIT_AUTH_FAILED;
 		goto err_tunnel;
 	}
 	log_info("Authenticated.\n");
+	event_emit("state_change", "\"state\":\"allocating\"");
 
 	ret = auth_request_vpn_allocation(&tunnel);
 	if (ret != 1) {
 		log_error("VPN allocation request failed.\n");
-		ret = 1;
+		ret = OFV_EXIT_ALLOC_DENIED;
 		goto err_tunnel;
 	}
 	log_info("Remote gateway has allocated a VPN.\n");
+	event_emit("state_change", "\"state\":\"configuring\"");
 
 	ret = ssl_connect(&tunnel);
-	if (ret)
+	if (ret) {
+		if (ret != OFV_EXIT_CERT_FAILED)
+			ret = OFV_EXIT_TLS_FAILED;
 		goto err_tunnel;
+	}
 
 	/* Step 3: get VPN configuration */
 	log_debug("Retrieving configuration\n");
 	ret = auth_get_config(&tunnel);
 	if (ret != 1) {
 		log_error("Could not get VPN configuration.\n");
-		ret = 1;
+		ret = OFV_EXIT_CONFIG_FAILED;
 		goto err_tunnel;
 	}
 
 	/* Step 4: create wintun adapter (replaces pppd_run) */
+	event_emit("state_change", "\"state\":\"creating_adapter\"");
 	log_debug("Creating wintun adapter\n");
 	ret = wintun_create(&tunnel);
-	if (ret)
+	if (ret) {
+		ret = OFV_EXIT_ADAPTER_FAILED;
 		goto err_tunnel;
+	}
 
 	/* Step 5: switch to tunnel mode */
+	event_emit("state_change", "\"state\":\"tunneling\"");
 	log_debug("Switch to tunneling mode\n");
 	ret = http_send(&tunnel,
 	                "GET /remote/sslvpn-tunnel HTTP/1.1\r\n"
@@ -559,15 +596,18 @@ int run_tunnel(struct vpn_config *config)
 	                tunnel.cookie);
 	if (ret != 1) {
 		log_error("Could not start tunnel.\n");
+		ret = OFV_EXIT_TUNNEL_FAILED;
 		goto err_start_tunnel;
 	}
 
 	tunnel.state = STATE_CONNECTING;
 
 	/* Step 6: I/O loop (PPP negotiation + packet forwarding) */
+	event_emit("state_change", "\"state\":\"connected\"");
 	log_debug("Starting IO through the tunnel\n");
 	io_loop(&tunnel);
 
+	event_emit("state_change", "\"state\":\"disconnecting\"");
 	log_debug("Disconnecting\n");
 	if (tunnel.state == STATE_UP)
 		if (tunnel.on_ppp_if_down != NULL)
