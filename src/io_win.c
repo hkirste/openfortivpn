@@ -263,7 +263,7 @@ static void *ssl_write_thread(void *arg)
 			                     6 + packet->len);
 		} while (ret == 0 &&
 		         !InterlockedCompareExchange(
-			         &shutting_down, 0, 0));
+		                 &shutting_down, 0, 0));
 
 		free(packet);
 		if (ret < 0)
