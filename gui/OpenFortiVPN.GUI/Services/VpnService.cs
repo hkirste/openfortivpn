@@ -28,6 +28,9 @@ public sealed class VpnService : IVpnService, IDisposable
     public event EventHandler<string>? SamlLoginRequired;
 
     private readonly List<string> _errorLines = new();
+    private readonly List<LogEntry> _logBuffer = new();
+
+    public IReadOnlyList<LogEntry> LogBuffer => _logBuffer;
 
     public VpnService(ISettingsService settings, ILogger<VpnService> logger)
     {
@@ -44,6 +47,7 @@ public sealed class VpnService : IVpnService, IDisposable
 
         _cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
         _errorLines.Clear();
+        _logBuffer.Clear();
         CurrentConnection.ErrorMessage = null;
         CurrentConnection.ErrorCategory = null;
         var appSettings = _settings.Current;
@@ -182,6 +186,10 @@ public sealed class VpnService : IVpnService, IDisposable
                 else
                 {
                     var severity = ClassifyStdoutSeverity(line);
+
+                    if (severity == LogSeverity.Error)
+                        _errorLines.Add(line.TrimStart());
+
                     var entry = new LogEntry
                     {
                         Timestamp = DateTime.Now,
@@ -191,9 +199,7 @@ public sealed class VpnService : IVpnService, IDisposable
                         Source = source
                     };
 
-                    if (severity == LogSeverity.Error)
-                        _errorLines.Add(line.TrimStart());
-
+                    _logBuffer.Add(entry);
                     LogReceived?.Invoke(this, entry);
                 }
             }

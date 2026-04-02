@@ -144,7 +144,7 @@ public class VpnProfileBuildArgumentsTests
     }
 
     [Fact]
-    public void BuildArguments_AlwaysIncludesVerboseFlag()
+    public void BuildArguments_DoesNotHardcodeVerbosity()
     {
         var profile = new VpnProfile
         {
@@ -154,7 +154,9 @@ public class VpnProfileBuildArgumentsTests
 
         var args = profile.BuildArguments();
 
-        args.Should().Contain("-v");
+        // Verbosity is controlled by settings, not profile
+        args.Should().NotContain("-v");
+        args.Should().NotContain("-q");
     }
 
     [Fact]
@@ -205,6 +207,5 @@ public class VpnProfileBuildArgumentsTests
         args.Should().Contain("--no-dns");
         args.Should().Contain("--persistent=60");
         args.Should().Contain("--half-internet-routes=1");
-        args.Should().Contain("-v");
     }
 }

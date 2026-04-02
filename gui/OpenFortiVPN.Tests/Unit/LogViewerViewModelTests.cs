@@ -190,6 +190,7 @@ public class LogViewerViewModelTests
         public ConnectionState State { get; set; }
         public ConnectionInfo CurrentConnection { get; } = new();
         public bool IsActive => false;
+        public IReadOnlyList<LogEntry> LogBuffer => new List<LogEntry>();
 
         public event EventHandler<ConnectionState>? StateChanged;
         public event EventHandler<LogEntry>? LogReceived;

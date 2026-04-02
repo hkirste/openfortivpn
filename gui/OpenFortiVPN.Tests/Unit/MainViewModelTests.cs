@@ -186,6 +186,7 @@ public class MainViewModelTests
         public ConnectionInfo CurrentConnection { get; } = new();
         public bool IsActiveValue { get; set; }
         public bool IsActive => IsActiveValue;
+        public IReadOnlyList<LogEntry> LogBuffer => new List<LogEntry>();
         public bool DisconnectCalled { get; private set; }
 
         public event EventHandler<ConnectionState>? StateChanged;

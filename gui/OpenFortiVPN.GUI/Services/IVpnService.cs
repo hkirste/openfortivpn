@@ -37,4 +37,7 @@ public interface IVpnService
 
     /// <summary>Whether a connection or connection attempt is active.</summary>
     bool IsActive { get; }
+
+    /// <summary>Buffered log entries from the current/last session.</summary>
+    IReadOnlyList<LogEntry> LogBuffer { get; }
 }

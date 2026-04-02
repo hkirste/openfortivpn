@@ -155,6 +155,7 @@ public class DashboardViewModelTests
         public ConnectionState State { get; set; } = ConnectionState.Disconnected;
         public ConnectionInfo CurrentConnection { get; } = new();
         public bool IsActive => false;
+        public IReadOnlyList<LogEntry> LogBuffer => new List<LogEntry>();
 
         public event EventHandler<ConnectionState>? StateChanged;
         public event EventHandler<LogEntry>? LogReceived;

@@ -54,27 +54,32 @@ public partial class LogViewerViewModel : ObservableObject
         _dispatcher = dispatcher;
 
         _vpnService.LogReceived += OnLogReceived;
+
+        // Load buffered entries from before this VM was created
+        foreach (var entry in _vpnService.LogBuffer)
+            AddEntry(entry);
     }
 
     private void OnLogReceived(object? sender, LogEntry entry)
     {
-        _dispatcher.Invoke(() =>
+        _dispatcher.Invoke(() => AddEntry(entry));
+    }
+
+    private void AddEntry(LogEntry entry)
+    {
+        _allLogs.Add(entry);
+
+        var max = _settingsService.Current.MaxLogLines;
+        while (_allLogs.Count > max)
+            _allLogs.RemoveAt(0);
+
+        TotalEntries = _allLogs.Count;
+
+        if (ShouldShowEntry(entry))
         {
-            _allLogs.Add(entry);
-
-            // Enforce max log lines
-            var max = _settingsService.Current.MaxLogLines;
-            while (_allLogs.Count > max)
-                _allLogs.RemoveAt(0);
-
-            TotalEntries = _allLogs.Count;
-
-            if (ShouldShowEntry(entry))
-            {
-                FilteredLogs.Add(entry);
-                VisibleEntries = FilteredLogs.Count;
-            }
-        });
+            FilteredLogs.Add(entry);
+            VisibleEntries = FilteredLogs.Count;
+        }
     }
 
     private bool ShouldShowEntry(LogEntry entry)
