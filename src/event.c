@@ -118,3 +118,41 @@ char *json_escape(char *buf, size_t buf_size, const char *input)
 	buf[o] = '\0';
 	return buf;
 }
+
+void event_emit_cert_error(const char *digest, const char *reason)
+{
+	char buf[512];
+	char esc_d[256], esc_r[128];
+
+	json_escape(esc_d, sizeof(esc_d), digest);
+	json_escape(esc_r, sizeof(esc_r), reason);
+	snprintf(buf, sizeof(buf),
+	         "\"digest\":\"%s\",\"reason\":\"%s\"",
+	         esc_d, esc_r);
+	event_emit("cert_error", buf);
+}
+
+void event_emit_error(int code, const char *category,
+                      const char *msg)
+{
+	char buf[512];
+	char esc_c[64], esc_m[256];
+
+	json_escape(esc_c, sizeof(esc_c), category);
+	json_escape(esc_m, sizeof(esc_m), msg);
+	snprintf(buf, sizeof(buf),
+	         "\"code\":%d,\"category\":\"%s\",\"message\":\"%s\"",
+	         code, esc_c, esc_m);
+	event_emit("error", buf);
+}
+
+void event_emit_tunnel_up(const char *ip, const char *d1,
+                          const char *d2)
+{
+	char buf[256];
+
+	snprintf(buf, sizeof(buf),
+	         "\"local_ip\":\"%s\",\"dns1\":\"%s\",\"dns2\":\"%s\"",
+	         ip, d1, d2);
+	event_emit("tunnel_up", buf);
+}

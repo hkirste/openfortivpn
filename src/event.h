@@ -32,4 +32,9 @@ void event_emit(const char *type, const char *json_fields_fmt, ...);
  */
 char *json_escape(char *buf, size_t buf_size, const char *input);
 
+/* Typed event emitters that avoid split-string lint warnings. */
+void event_emit_cert_error(const char *digest, const char *reason);
+void event_emit_error(int code, const char *category, const char *msg);
+void event_emit_tunnel_up(const char *ip, const char *d1, const char *d2);
+
 #endif /* OPENFORTIVPN_EVENT_H */
